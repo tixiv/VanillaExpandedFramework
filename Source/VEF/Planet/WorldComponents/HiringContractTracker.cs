@@ -10,54 +10,69 @@ namespace VEF.Planet
 {
     using UnityEngine;
 
-    public class HiringContractTracker : WorldComponent, ICommunicable
+    public class HiringContractTracker : WorldComponent
     {
-        public Dictionary<Hireable, List<ExposablePair>>
-            deadCount = new Dictionary<Hireable, List<ExposablePair>>(); //the pair being amount of dead people and at what tick it expires
+        private static HiringContractTracker cachedTracker = null;
 
-        public int                endTicks;
-        public HireableFactionDef factionDef;
-        public Hireable           hireable;
-        public List<Pawn>         pawns = new List<Pawn>();
-        public float              price;
+        public static HiringContractTracker Get()
+        {
+            if (cachedTracker == null || cachedTracker.world != Find.World)
+                cachedTracker = Find.World.GetComponent<HiringContractTracker>();
 
+            return cachedTracker;
+        }
+
+        // Here is where the instances of our HireableFactions for each HireableFactionDef
+        // live. They are deep saved in this class.
+
+        private Dictionary<HireableFactionDef, HireableFaction> factions = [];
+
+        static int count;
         public HiringContractTracker(World world) : base(world)
         {
+            Log.Message($"HiringContractTracker Constructor called {count++}");
         }
 
-        public string GetCallLabel() => "VEF.ContractInfo".Translate((factionDef?.label ?? hireable.Key).CapitalizeFirst());
-
-        public string GetInfoText() => "";
-
-        public void TryOpenComms(Pawn negotiator)
+        public IEnumerable<ICommunicable> GetComTargets()
         {
-            Find.WindowStack.Add(new Dialog_ContractInfo(this));
+            foreach (var def in HireableSystemStaticInitialization.Hireables)                
+                yield return factions[def];
         }
 
-        public Faction GetFaction() => null;
+        private static IEnumerable<Quest> getOngoingQuests() => Find.QuestManager.QuestsListForReading.Where(q => q.State == QuestState.Ongoing && q.root.defName == "VFECore_Hireables");
 
-        public FloatMenuOption CommFloatMenuOption(Building_CommsConsole console, Pawn negotiator) => FloatMenuUtility.DecoratePrioritizedTask(
-         new FloatMenuOption(GetCallLabel(), () => console.GiveUseCommsJob(negotiator, this), MenuOptionPriority.InitiateSocial), negotiator, console);
-
-        public bool IsHired(Pawn pawn) => this.pawns.Contains(pawn);
-
-        public void SetNewContract(int days, List<Pawn> pawns, Hireable hireable, HireableFactionDef faction = null, float price = 0)
+        public static IEnumerable<ContractInfo> GetOngoingContracts()
         {
-            endTicks      = Find.TickManager.TicksAbs + days * GenDate.TicksPerDay;
-            this.pawns    = pawns;
-            this.hireable = hireable;
-            factionDef    = faction;
-            this.price    = price;
+            foreach (var q in getOngoingQuests())
+                foreach (QuestPart_HireableContract qp in q.PartsListForReading.OfType<QuestPart_HireableContract>())
+                    yield return qp.contractInfo;            
         }
 
+        public static bool IsHired(Pawn pawn) => GetOngoingContracts().Any(c => c.pawns.Contains(pawn));
+
+        private bool checkedIfSavegameNeedsConversion = false;
         public override void WorldComponentTick()
         {
             base.WorldComponentTick();
 
+            if (!checkedIfSavegameNeedsConversion)
+            {
+                checkedIfSavegameNeedsConversion = true;
+                if (legacyData.Valid)
+                    legacyData.ConvertToQuest(factions);
+            }
+
+            /* 
             if (Find.TickManager.TicksAbs % 150 == 0 && Find.TickManager.TicksAbs > endTicks && this.pawns.Any())
                 this.EndContract();
+            */
         }
 
+        public void EndContract(HireableFactionDef hireableFactionDef)
+        {
+        }
+
+        /*
         public void EndContract()
         {
             var deadPeople = 0;
@@ -106,7 +121,14 @@ namespace VEF.Planet
             if (this.pawns.Count <= 0)
                 this.hireable = null;
         }
+        */
 
+        public static void breakContract()
+        {
+        
+        }
+
+        /*
         public void BreakContract()
         {
             if (this.pawns.Count > 0)
@@ -138,74 +160,126 @@ namespace VEF.Planet
             this.hireable = null;
             this.pawns.Clear();
         }
+        */
 
-        public float GetFactorForHireable(Hireable hireable)
+        private class LegacySavegameData
         {
-            if (!deadCount.ContainsKey(hireable))
-                deadCount.Add(hireable, new List<ExposablePair>());
+            public int endTicks;
+            public HireableFactionDef factionDef;
+            public List<Pawn> pawns = [];
+            public float price;
+            public string hireable;
 
-            var pairs = deadCount[hireable];
+            public bool Valid;
 
-            float factor = 0;
+            public void ConvertToQuest(Dictionary<HireableFactionDef, HireableFaction> factions)
+            {
+                HireableUtil.SpawnHiredPawnsQuest(factions[factionDef], null, endTicks - Find.TickManager.TicksAbs, price, Orders.ConvertSavegame(), pawns);
+            }
 
-            for (var i = pairs.Count - 1; i >= 0; i--)
-                if (Find.TickManager.TicksAbs > (int)pairs[i].value)
-                    pairs.RemoveAt(i);
-                else
-                    factor += 0.05f * (int)pairs[i].key;
+            public void ExposeData()
+            {
+                // Here we load the data from an old savegame to convert it to the new system
 
-            return factor;
+                if (Scribe.mode != LoadSaveMode.Saving)
+                {
+                    Scribe_Values.Look(ref endTicks, nameof(endTicks));
+                    Scribe_Values.Look(ref price, "price");
+                    Scribe_Values.Look(ref hireable, "hireable");
+                    Scribe_Defs.Look(ref factionDef, "faction");
+                    Scribe_Collections.Look(ref pawns, nameof(pawns), LookMode.Reference);
+
+                    // Okay, so the way deadCount was saved was really messy. And broken, two!
+                    // You never had any buisiness history whith the old version after loading.
+
+                    // So we exposed a temporary 'List<Hireable>' with 'LookMode.Reference'.
+                    // Because of the reference look mode, this means that the 'Hireable' instance
+                    // is expected to be deepsaved somewhere else. That was not done by the old code,
+                    // Instead it used a harmony patch to make the 'LoadedObjectDirectory.Clear()' method
+                    // deep inside the scribe system have the side effect of not only clearing the directory,
+                    // but also inserting our keys.... Yuck ... terrible hack. So if you were wondering while
+                    // with VFE installed you got messages that stuff isn't deepsaved, it is because of this hack!
+
+                    // Sadly no meaningfull buisiness history is ever saved, it saves *something* if you save
+                    // after killing hireables, but it doesn't really have anything to do with what happened.
+                    // Loading was totally broken by the way and always cleared the history. So not being
+                    // able to convert it here is not a big loss.
+
+                    if (Scribe.mode == LoadSaveMode.PostLoadInit)
+                    {
+                        Log.Message($"endTicks={endTicks}, price={price}, factionDef={factionDef}, hireable={hireable}");
+
+                        foreach (Pawn p in pawns)
+                        {
+                            Log.Message($"pawn={p.Name}");
+                        }
+
+                        // Check whether we have an active contract with pawns that the player is still controlling
+                        // The pawns might be leaving, but they would still belong to 'Faction.OfPlayer'
+                        if (hireable != null && pawns.Any(p => p!= null && !p.Dead && p.Faction != null && p.Faction == Faction.OfPlayer))
+                            Valid = true;
+                    }
+                }
+            }
         }
+
+        LegacySavegameData legacyData = new LegacySavegameData();
 
         public override void ExposeData()
         {
             base.ExposeData();
 
-            Scribe_Values.Look(ref endTicks, nameof(endTicks));
+            Log.Message($"Scribe mode = {Scribe.mode}");
 
-            Scribe_Collections.Look(ref this.pawns, nameof(this.pawns), LookMode.Reference);
+            // Handle loading old savegames
+            legacyData.ExposeData();
 
-            Scribe_References.Look(ref hireable, nameof(hireable));
-            var deadCountKey = new List<Hireable>(deadCount.Keys);
-            Scribe_Collections.Look(ref deadCountKey, nameof(deadCountKey), LookMode.Reference);
-            var deadCountValue = new List<List<ExposablePair>>(deadCount.Values);
-            for (var i = 0; i < deadCountKey.Count; i++)
+            // Okay, I finally understood how scribe works.
+            // Here we call ExposeData on a 'Dictionary'. A 'Dictionary' is a kind of a map, so this one has a 'Key'
+            // that maps to a 'Value'. For each 'Key' there is one 'Value'. In C++ this would be 'std::map'.
+            // Here 'Scribe_Collections' gives us two arguments for the 'LookMode'. The first one is for the 'Key',
+            // the second one is for the 'Value'. We give 'LookMode.Def' for the key, because it is a 'HireableFactionDef'
+            //  from the XML files. We give 'LookMode.Deep' for the value because it implements 'IExposable'. Here the
+            // 'Value' also implements 'ILoadReferenceable'. That one will also only be tracked by Scribe if we call it here
+            // with 'LookMode.Deep'.
+            // By the way: 'ILoadRefernceable' on the 'HireableFaction' is mainly needed for the usecase when you order a
+            // colonist to use the comms console, and then you save the game while they are walking to it. The job needs to have
+            // the 'ICommunicable' that the colonist is going to use to be load referenceable so he can complete the job after
+            // reloading the savegame.
+
+            Scribe_Collections.Look(ref factions, nameof(factions), LookMode.Def, LookMode.Deep);
+
+            if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
-                var exposablePairs = deadCountValue.Count > i ? deadCountValue[i] : new List<ExposablePair>();
-                Scribe_Collections.Look(ref exposablePairs, nameof(exposablePairs) + i, LookMode.Deep);
-
-                if (deadCountValue.Count > i)
-                    deadCountValue[i] = exposablePairs;
-                else
-                    deadCountValue.Add(exposablePairs);
+                // Here we make sure that if we load a savegame that doesn't have this stuff yet (mod just got installed)
+                // That we add them if they were not loaded from the savegame.
+                SanitizeHireableFactions();
             }
-
-
-            deadCount.Clear();
-            for (var index = 0; index < deadCountKey.Count; index++)
-                deadCount.Add(deadCountKey[index], deadCountValue[index]);
-
-            Scribe_Values.Look(ref price, "price");
-            Scribe_Defs.Look(ref factionDef, "faction");
-        }
-    }
-
-    public class ExposablePair : IExposable
-    {
-        public object key;
-        public object value;
-
-
-        public ExposablePair(object key, object value)
-        {
-            this.key   = key;
-            this.value = value;
         }
 
-        public void ExposeData()
+        private void SanitizeHireableFactions()
         {
-            Scribe_Values.Look(ref key,   nameof(key));
-            Scribe_Values.Look(ref value, nameof(value));
+            if (factions == null)
+                factions = [];
+
+            // If any hireable factions got removed, we also remove them here.
+
+            foreach (var f in factions)
+                if (!HireableSystemStaticInitialization.Hireables.Contains(f.Key))
+                    factions.Remove(f.Key);
+
+            // If any new 'HierableFactionDef' have been created we add a 'HireableFaction' instance
+
+            foreach (var def in HireableSystemStaticInitialization.Hireables)
+                if (!factions.ContainsKey(def))
+                    factions.Add(def, new HireableFaction(def));
+        }
+
+        public override void FinalizeInit(bool fromLoad)
+        {
+            base.FinalizeInit(fromLoad);
+            Log.Message("Finalize init called");
+            SanitizeHireableFactions();
         }
     }
 }

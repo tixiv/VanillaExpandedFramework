@@ -7,6 +7,7 @@ using Verse;
 
 namespace VEF.Planet
 {
+#if true
     [HarmonyPatch(typeof(FactionGenerator), "NewGeneratedFaction", new Type[] { typeof(FactionGeneratorParms) })]
     public static class VanillaExpandedFramework_FactionGenerator_NewGeneratedFaction_Patch
     {
@@ -36,4 +37,6 @@ namespace VEF.Planet
             }
         }
     }
+            
+#endif
 }

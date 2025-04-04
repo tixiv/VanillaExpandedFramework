@@ -263,11 +263,6 @@
       <HintPath>..\..\..\..\RimWorldWin64_Data\Managed\UnityEngine.TerrainPhysicsModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="UnityEngine.TextCoreModule">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\RimWorldWin64_Data\Managed\UnityEngine.TextCoreModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\RimWorldWin64_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
@@ -301,11 +296,6 @@
     <Reference Include="UnityEngine.UmbraModule">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\RimWorldWin64_Data\Managed\UnityEngine.UmbraModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="UnityEngine.UNETModule">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\RimWorldWin64_Data\Managed\UnityEngine.UNETModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.UnityAnalyticsModule">
@@ -558,6 +548,19 @@
     <Compile Include="Planet\Harmony\Caravan_PathFollower_PatherTick.cs" />
     <Compile Include="Planet\Harmony\Caravan_PathFollower_StartPath.cs" />
     <Compile Include="Planet\Harmony\FactionGenerator_NewGeneratedFaction.cs" />
+    <Compile Include="Planet\Misc\EquipmentOffsetConditions.cs" />
+    <Compile Include="Planet\Misc\HireableSystem\DebugStuff.cs" />
+    <Compile Include="Planet\Misc\HireableSystem\HireableFaction.cs" />
+    <Compile Include="Planet\Misc\HireableSystem\HireableUtil.cs" />
+    <Compile Include="Planet\Misc\HireableSystem\Orders.cs" />
+    <Compile Include="Planet\Misc\HireableSystem\QuestNode_Root_Hireables.cs" />
+    <Compile Include="Planet\Misc\HireableSystem\QuestPartGiveToCaravan.cs" />
+    <Compile Include="Planet\Misc\HireableSystem\QuestPart_AttackEnemyBase.cs" />
+    <Compile Include="Planet\Misc\HireableSystem\QuestPart_FormCaravan.cs" />
+    <Compile Include="Planet\Misc\HireableSystem\QuestPart_HireableContract.cs" />
+    <Compile Include="Planet\Misc\HireableSystem\QuestPart_VisitSite.cs" />
+    <Compile Include="Planet\Misc\HireableSystem\QuestUtil.cs" />
+    <Compile Include="Planet\Misc\HireableSystem\TargetChooser.cs" />
     <Compile Include="Planet\Misc\MovingBaseDestinationAction.cs" />
     <Compile Include="Planet\ScenParts\ScenPart_ArriveAtEdge.cs" />
     <Compile Include="Planet\Utils\MovingBaseTweenerUtility.cs" />
@@ -1153,7 +1156,6 @@
     <Compile Include="Memes\Harmony\Pawn_IdeoTracker_SetIdeo.cs" />
     <Compile Include="Memes\MapComponents\MapComponent_IdeologicalGoodies.cs" />
     <Compile Include="Planet\Misc\HireableSystem\Dialog_Hire.cs" />
-    <Compile Include="Planet\Misc\HireableSystem\EquipmentOffsetConditions.cs" />
     <Compile Include="Planet\Misc\HireableSystem\HireableFactionDef.cs" />
     <Compile Include="Planet\Misc\HireableSystem\HireableSystemStaticInitialization.cs" />
     <Compile Include="Weapons\StatParts\StatPart_Ammo.cs" />
