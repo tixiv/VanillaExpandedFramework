@@ -1,6 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
+using RimWorld.QuestGen;
 using UnityEngine;
 using Verse;
 using Verse.Sound;
@@ -8,34 +10,41 @@ using VFECore.UItils;
 
 namespace VFECore.Misc
 {
+    [DefOf]
+    public class QuestDefOf
+    {
+        public static QuestScriptDef VFECore_Hireables;
+    }
+
+
     public class Dialog_Hire : Window
     {
-        private static   Ideo                                       hiredIdeo;
-        private readonly float                                      availableSilver;
-        private readonly Hireable                                   hireable;
+        private static Ideo hiredIdeo;
+        private readonly float availableSilver;
+        private readonly Hireable hireable;
         private readonly Dictionary<PawnKindDef, Pair<int, string>> hireData;
-        private readonly float                                      riskMultiplier;
-        private readonly Map                                        targetMap;
-        private          HireableFactionDef                         curFaction;
-        private          int                                        daysAmount;
-        private          string                                     daysAmountBuffer;
+        private readonly float riskMultiplier;
+        private readonly Map targetMap;
+        private HireableFactionDef curFaction;
+        private int daysAmount;
+        private string daysAmountBuffer;
 
         public Dialog_Hire(Thing negotiator, Hireable hireable)
         {
-            targetMap     = negotiator.Map;
+            targetMap = negotiator.Map;
             this.hireable = hireable;
-            hireData      = hireable.SelectMany(def => def.pawnKinds).ToDictionary(def => def, _ => new Pair<int, string>(0, ""));
+            hireData = hireable.SelectMany(def => def.pawnKinds).ToDictionary(def => def, _ => new Pair<int, string>(0, ""));
             closeOnCancel = true;
-            forcePause    = true;
+            forcePause = true;
             closeOnAccept = true;
             availableSilver = targetMap.listerThings.ThingsOfDef(ThingDefOf.Silver)
                                     .Where(x => !x.Position.Fogged(x.Map) && (targetMap.areaManager.Home[x.Position] || x.IsInAnyStorage())).Sum(t => t.stackCount);
             riskMultiplier = Find.World.GetComponent<HiringContractTracker>().GetFactorForHireable(hireable);
         }
 
-        public override    Vector2 InitialSize => new Vector2(750f, 650f);
-        protected override float   Margin      => 15f;
-        private            float   CostBase    => CostDays * CostPawns();
+        public override Vector2 InitialSize => new Vector2(750f, 650f);
+        protected override float Margin => 15f;
+        private float CostBase => CostDays * CostPawns();
 
         private float CostDays => Mathf.Pow(daysAmount, 0.8f);
 
@@ -45,6 +54,32 @@ namespace VFECore.Misc
             hireData.Select(kv => new Pair<PawnKindDef, int>(kv.Key, kv.Value.First)).Where(pair => pair.Second > 0 && (except == null || !except.Contains(pair.First)))
                  .Sum(pair => Mathf.Pow(pair.Second, 1.2f) * pair.First.combatPower);
 
+        private void removeSilver(int amount)
+        {
+            List<Thing> silverList = targetMap.listerThings.ThingsOfDef(ThingDefOf.Silver)
+                                              .Where(x => !x.Position.Fogged(x.Map) && (targetMap.areaManager.Home[x.Position] || x.IsInAnyStorage())).ToList();
+            while (amount > 0)
+            {
+                Thing silver = silverList.First(t => t.stackCount > 0);
+                int amountToTakeFromThisStack = Mathf.Min(amount, silver.stackCount);
+                silver.SplitOff(amountToTakeFromThisStack).Destroy();
+                amount -= amountToTakeFromThisStack;
+            }
+        }
+
+
+        private void generateQuest(QuestScriptDef script, Slate slate)
+        {
+            if (!script.CanRun(slate))
+            {
+                Messages.Message("Failed to generate quest. CanRun returned false.", MessageTypeDefOf.RejectInput, false);
+            }
+            else
+            {
+                QuestUtility.GenerateQuestAndMakeAvailable(script, slate);
+            }
+        }
+
         public override void OnAcceptKeyPressed()
         {
             base.OnAcceptKeyPressed();
@@ -52,22 +87,39 @@ namespace VFECore.Misc
 
             if (daysAmount > 0 && hireData.Any(kvp => kvp.Value.First > 0))
             {
-                List<Pawn> pawns = new();
+                Log.Message("OnAcceptKeyPressed 1");
+                
+                removeSilver(Mathf.RoundToInt(CostFinal));
 
-                int remainingCost = Mathf.RoundToInt(CostFinal);
+                Log.Message("OnAcceptKeyPressed 2");
 
-                List<Thing> silverList = targetMap.listerThings.ThingsOfDef(ThingDefOf.Silver)
-                                                  .Where(x => !x.Position.Fogged(x.Map) && (targetMap.areaManager.Home[x.Position] || x.IsInAnyStorage())).ToList();
-                while (remainingCost > 0)
+                FactionDef factionDef = FactionDefOf.OutlanderCivil;
+
+                Log.Message("OnAcceptKeyPressed 3");
+
+                List<FactionRelation> listFactionRelations = [];
+                foreach (Faction f in Find.FactionManager.AllFactionsListForReading)
                 {
-                    Thing silver = silverList.First(t => t.stackCount > 0);
-                    int num    = Mathf.Min(remainingCost, silver.stackCount);
-                    silver.SplitOff(num).Destroy();
-                    remainingCost -= num;
+                    if (!f.def.PermanentlyHostileTo(factionDef))
+                    {
+                        listFactionRelations.Add(new FactionRelation
+                        {
+                            other = f,
+                            kind = FactionRelationKind.Neutral
+                        });
+                    }
                 }
 
-                //if (!RCellFinder.TryFindRandomPawnEntryCell(out var cell, targetMap, 1f))
-                    //cell = CellFinder.RandomEdgeCell(targetMap);
+                Log.Message("OnAcceptKeyPressed 4");
+
+                FactionGeneratorParms factionGeneratorParms = new FactionGeneratorParms(factionDef, default(IdeoGenerationParms), new bool?(true));
+                Faction faction = FactionGenerator.NewGeneratedFactionWithRelations(factionGeneratorParms, listFactionRelations);
+                faction.temporary = true;
+                Find.FactionManager.Add(faction);
+
+                Log.Message("OnAcceptKeyPressed 5");
+
+                List<Pawn> pawns = [];
 
                 foreach (KeyValuePair<PawnKindDef, Pair<int, string>> kvp in hireData)
                     for (int i = 0; i < kvp.Value.First; i++)
@@ -77,16 +129,43 @@ namespace VFECore.Misc
                         kvp.Key.ignoreFactionApparelStuffRequirements = true;
 
 
-                        Pawn pawn = PawnGenerator.GeneratePawn(new PawnGenerationRequest(kvp.Key, mustBeCapableOfViolence: true, faction: Faction.OfPlayer,
-                                                                                         forbidAnyTitle: true, fixedIdeo: curFaction.referencedFaction is null || Find.World.factionManager.FirstFactionOfDef(curFaction.referencedFaction) is not {} refFaction ? 
-                                                                                                                              hiredIdeo ??= IdeoGenerator.GenerateIdeo(
-                                                                                                                               new IdeoGenerationParms(Faction.OfPlayer.def, classicExtra: true)) : 
-                                                                                                                              refFaction.ideos.GetRandomIdeoForNewPawn()));
-                        
-                        kvp.Key.ignoreFactionApparelStuffRequirements = flag;
-                        pawn.playerSettings.hostilityResponse         = HostilityResponseMode.Attack;
-                        pawns.Add(pawn);
-                        
+                        Log.Message("OnAcceptKeyPressed 6");
+
+                        Ideo fixedIdeo = curFaction.referencedFaction is null || Find.World.factionManager.FirstFactionOfDef(curFaction.referencedFaction) is not {} refFaction ?
+                                                                                                                                hiredIdeo ??= IdeoGenerator.GenerateIdeo(
+                                                                                                                                new IdeoGenerationParms(Faction.OfPlayer.def, classicExtra: true)) :
+                                                                                                                                refFaction.ideos.GetRandomIdeoForNewPawn();
+
+                        Log.Message("OnAcceptKeyPressed 7");
+
+                        // Faction faction = Faction.OfPlayer;
+
+                        Pawn pawn = PawnGenerator.GeneratePawn(new PawnGenerationRequest(kvp.Key, mustBeCapableOfViolence: true, faction: faction,
+                                                                                            forbidAnyTitle: true, fixedIdeo: fixedIdeo));
+
+
+                        if (pawn != null)
+                        {
+                            Log.Message("OnAcceptKeyPressed 8");
+
+                            kvp.Key.ignoreFactionApparelStuffRequirements = flag;
+
+                            if (pawn.playerSettings != null)
+                            {
+                                pawn.playerSettings.hostilityResponse = HostilityResponseMode.Attack;
+                            }
+                            else
+                                Log.Message("pawn.playerSettings is null");
+
+                            Log.Message("OnAcceptKeyPressed 9");
+
+                            pawns.Add(pawn);
+                        }
+                        else
+                            Log.Message("pawn is null");
+
+
+                        /*
                         IntVec3 loc = DropCellFinder.TryFindSafeLandingSpotCloseToColony(targetMap, IntVec2.Two);
 
                         ActiveDropPodInfo activeDropPodInfo = new ActiveDropPodInfo();
@@ -96,7 +175,16 @@ namespace VFECore.Misc
                         activeDropPodInfo.despawnPodBeforeSpawningThing = true;
                         activeDropPodInfo.spawnWipeMode                 = WipeMode.Vanish;
                         DropPodUtility.MakeDropPodAt(loc, this.targetMap, activeDropPodInfo);
+                        */
                     }
+
+                Log.Message("OnAcceptKeyPressed 10");
+
+                Slate slate = new Slate();
+                slate.Set<Faction>("faction", faction);
+                slate.Set<List<Pawn>>("pawns", pawns, false);
+
+                generateQuest(QuestDefOf.VFECore_Hireables, slate);
 
                 Find.World.GetComponent<HiringContractTracker>().SetNewContract(daysAmount, pawns, hireable, curFaction, CostFinal);
             }

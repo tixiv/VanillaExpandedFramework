@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Defs>
+
+  <QuestScriptDef>
+    <defName>VFECore_Hireables</defName>
+    <root Class="VFECore.Misc.QuestNode_Root_Hireables" />
+	<isRootSpecial>true</isRootSpecial>
+	<rootSelectionWeight>0.0</rootSelectionWeight>
+    <hideInvolvedFactionsInfo>true</hideInvolvedFactionsInfo>
+    <affectedByPopulation>false</affectedByPopulation>
+    <affectedByPoints>false</affectedByPoints>
+    <defaultCharity>false</defaultCharity>
+	<autoAccept>true</autoAccept>
+	<defaultHidden>false</defaultHidden>
+    <questNameRules>
+      <rulesStrings>
+      
+        <!-- single -->
+        <li>questName(mercenaryCount==1)->[asker_nameDef] the [mercenarySingle]</li>
+        <li>questName(mercenaryCount==1)->[athe] [mercenaryAdj] [mercenarySingle]</li>
+
+        <!-- multiple -->
+        <li>questName(mercenaryCount>=2)->[mercenaryAdj] [mercenaryPlural]</li>
+        <li>questName(mercenaryCount>=2)->[asker_nameDef]'s [mercenaryAdj] [mercenaryPlural]</li>
+        <li>questName(mercenaryCount>=2)->[asker_nameDef]'s [mercenaryPlural]</li>
+
+        <!-- pieces -->
+        <li>athe->a</li>
+        <li>athe->the</li>
+
+        <li>mercenaryAdj->contracted</li>
+        <li>mercenaryAdj->hired</li>
+
+        <li>mercenarySingle->pirate</li>
+        <li>mercenarySingle->mercenary</li>
+        <li>mercenaryPlural->pirates</li>
+        <li>mercenaryPlural->mercaenaries</li>
+
+      </rulesStrings>
+    </questNameRules>
+    <questDescriptionAndNameRules>
+      <rulesStrings>
+        <li>mercenariesLabel->mercenary</li>
+        <li>mercenariesLabelPlural->mercenaries</li>
+      </rulesStrings>
+    </questDescriptionAndNameRules>
+	<questDescriptionRules>
+      <rulesStrings>
+
+        <!-- Quest description -->
+        <li>questDescription->You hired mercenaries. They have arrived and are ready for action.</li>
+      </rulesStrings>
+    </questDescriptionRules>
+	<questDescriptionAndNameRules>
+      <rulesStrings>
+        <li>mercenariesLabel->mercenary</li>
+        <li>mercenariesLabelPlural->mercenaries</li>
+      </rulesStrings>
+    </questDescriptionAndNameRules>
+	<questContentRules>
+      <rulesStrings>
+	    <li>mercenariesLabelSingularOrPlural(mercenaryCount==1)->[mercenariesLabel]</li>
+        <li>mercenariesLabelSingularOrPlural(mercenaryCount>=2)->[mercenariesLabelPlural]</li>
+	    <li>isare(mercenaryCount==1)->is</li>
+        <li>isare(mercenaryCount>=2)->are</li>
+	    <li>mercenariesLeavingLetterLabel->[mercenariesLabelSingularOrPlural] leaving</li>
+        <li>mercenariesLeavingLetterText->[asker] thanks you for the contract. As the contract has ended the [mercenariesLabelSingularOrPlural] [isare] now leaving.</li>
+	  </rulesStrings>
+    </questContentRules>
+	
+  </QuestScriptDef>          
+</Defs>

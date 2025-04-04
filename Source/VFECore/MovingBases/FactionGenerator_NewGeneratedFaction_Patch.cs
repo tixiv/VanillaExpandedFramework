@@ -7,6 +7,7 @@ using Verse;
 
 namespace VFECore
 {
+#if true
     [HarmonyPatch(typeof(FactionGenerator), "NewGeneratedFaction", new Type[] { typeof(FactionGeneratorParms) })]
     public static class FactionGenerator_NewGeneratedFaction_Patch
     {
@@ -36,4 +37,6 @@ namespace VFECore
             }
         }
     }
+            
+#endif
 }
