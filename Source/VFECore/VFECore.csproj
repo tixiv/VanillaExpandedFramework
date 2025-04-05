@@ -477,6 +477,7 @@
     <Compile Include="Genes\Harmony\FoodUtility_GetMeatSourceCategory.cs" />
     <Compile Include="Genes\Harmony\FoodUtility_GetMeatSourceCategoryFromCorpse.cs" />
     <Compile Include="Genes\Harmony\ThoughtWorker_HumanLeatherApparel_CurrentThoughtState.cs" />
+    <Compile Include="Misc\HireableSystem\HireableUtil.cs" />
     <Compile Include="Misc\HireableSystem\QuestNode_Root_Hireables.cs" />
     <Compile Include="Misc\HireableSystem\QuestPart_HireableContract.cs" />
     <Compile Include="MovingBases\CaravanArrivalAction_AttackMovingBase.cs" />

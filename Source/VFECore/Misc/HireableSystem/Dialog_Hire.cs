@@ -4,12 +4,13 @@ using System.Linq;
 using RimWorld;
 using RimWorld.QuestGen;
 using UnityEngine;
+using UnityEngine.Tilemaps;
 using Verse;
 using Verse.Sound;
 using VFECore.UItils;
 using static System.Collections.Specialized.BitVector32;
 
-namespace VFECore.Misc
+namespace VFECore.Misc.HireableSystem
 {
     [DefOf]
     public class QuestDefOf
@@ -67,131 +68,20 @@ namespace VFECore.Misc
             }
         }
 
-
-        private void generateQuest(QuestScriptDef script, Slate slate)
-        {
-            if (!script.CanRun(slate))
-            {
-                Messages.Message("Failed to generate quest. CanRun returned false.", MessageTypeDefOf.RejectInput, false);
-            }
-            else
-            {
-                QuestUtility.GenerateQuestAndMakeAvailable(script, slate);
-            }
-        }
-
-        
-
-        Faction MakeTemporaryFaction(Faction worldFaction, FactionDef refFaction)
-        {
-            FactionDef factionDef = refFaction ?? FactionDefOf.OutlanderCivil;
-
-            Log.Message("Genearating temporary faction. Ref = " + factionDef.label);
-
-            List<FactionRelation> listFactionRelations = [];
-            foreach (Faction f in Find.FactionManager.AllFactionsListForReading)
-            {
-                if (!f.def.PermanentlyHostileTo(factionDef))
-                {
-                    listFactionRelations.Add(new FactionRelation
-                    {
-                        other = f,
-                        kind = FactionRelationKind.Neutral
-                    });
-                }
-            }
-
-            /*
-            listFactionRelations.Add(new FactionRelation
-            {
-                other = Faction.OfPlayer,
-                kind = FactionRelationKind.Neutral
-            });
-            */
-
-
-            FactionGeneratorParms factionGeneratorParms = new FactionGeneratorParms(factionDef, default(IdeoGenerationParms), new bool?(true));
-            Faction faction = FactionGenerator.NewGeneratedFactionWithRelations(factionGeneratorParms, listFactionRelations);
-            faction.temporary = true;
-            Find.FactionManager.Add(faction);
-
-            //if (worldFaction != null)
-            //    faction.Name = worldFaction.Name;
-
-            Log.Message($"Created temporary faction: {faction.Name}. isHostile: {faction.HostileTo(Faction.OfPlayer)}");
-
-            return faction;
-        }
-
-        public static List<Pawn> generatePawns(ref readonly Dictionary<PawnKindDef, Pair<int, string>> hireData, Faction faction)
-        {
-            List<Pawn> pawns = [];
-
-            foreach (KeyValuePair<PawnKindDef, Pair<int, string>> kvp in hireData)
-            {
-                Log.Message($"Generating {kvp.Value.First} pawns of kind {kvp.Key.LabelCap}");
-                for (int i = 0; i < kvp.Value.First; i++)
-                {
-
-                    bool flag = kvp.Key.ignoreFactionApparelStuffRequirements;
-                    kvp.Key.ignoreFactionApparelStuffRequirements = true;
-
-                    Ideo fixedIdeo = faction.ideos.GetRandomIdeoForNewPawn();
-
-                    Pawn pawn = PawnGenerator.GeneratePawn(new PawnGenerationRequest(kvp.Key, mustBeCapableOfViolence: true, faction: faction,
-                                                                                        forbidAnyTitle: true, fixedIdeo: fixedIdeo));
-
-                    Log.Message($"Generated pawn :{pawn.LabelCap}");
-
-                    kvp.Key.ignoreFactionApparelStuffRequirements = flag;
-
-                    pawns.Add(pawn);
-                }
-            }
-
-            // Strongest pawn classes first
-            pawns.SortBy(p => p.kindDef.combatPower);
-
-            return pawns;
-        }
-
-
         public override void OnAcceptKeyPressed()
         {
             base.OnAcceptKeyPressed();
-            SoundDefOf.ExecuteTrade.PlayOneShotOnCamera();
 
             if (daysAmount > 0 && hireData.Any(kvp => kvp.Value.First > 0))
-            {                
+            {
+                SoundDefOf.ExecuteTrade.PlayOneShotOnCamera();
                 removeSilver(Mathf.RoundToInt(CostFinal));
 
-                Faction worldFaction = curFaction.referencedFaction != null ? Find.World.factionManager.FirstFactionOfDef(curFaction.referencedFaction) : null;
+                List<Pair<PawnKindDef, int>> list = [];
+                foreach (KeyValuePair<PawnKindDef, Pair<int, string>> kvp in hireData.Where(kvp => kvp.Value.First > 0))
+                    list.Add(new Pair<PawnKindDef, int>( kvp.Key, kvp.Value.First) );
 
-                if (worldFaction != null)
-                {
-                    Log.Message($"World faction is {worldFaction.Name}");
-                }
-
-                Faction faction = worldFaction != null && !worldFaction.HostileTo(Faction.OfPlayer) ? worldFaction : MakeTemporaryFaction(worldFaction, curFaction.referencedFaction);
-
-                List<Pawn> pawns = generatePawns(in hireData, faction);
-
-                if (faction != null)
-                    Log.Message($"Setting faction to {faction.Name}");
-                else
-                    Log.Message("faction is null?!?");
-                    
-                Slate slate = new Slate();
-                slate.Set<Hireable>("hireable", hireable);
-                slate.Set<HireableFactionDef>("hireableFaction", curFaction);
-                slate.Set<Faction>("faction", faction);
-                slate.Set<List<Pawn>>("pawns", pawns);
-                slate.Set<int>("questDurationTicks", daysAmount * 60000);
-                slate.Set<float>("price", CostFinal);
-                
-                generateQuest(QuestDefOf.VFECore_Hireables, slate);
-
-                // Find.World.GetComponent<HiringContractTracker>().SetNewContract(daysAmount, pawns, hireable, curFaction, CostFinal);
+                HireableUtil.SpawnHiredPawnsQuest(hireable, curFaction, in list, daysAmount, CostFinal);
             }
         }
 

@@ -7,7 +7,7 @@ using RimWorld;
 using RimWorld.Planet;
 using Verse;
 
-namespace VFECore.Misc
+namespace VFECore.Misc.HireableSystem
 {
     [StaticConstructorOnStartup]
     public static class HireableSystemStaticInitialization

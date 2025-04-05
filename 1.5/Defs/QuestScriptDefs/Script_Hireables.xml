@@ -3,7 +3,7 @@
 
   <QuestScriptDef>
     <defName>VFECore_Hireables</defName>
-    <root Class="VFECore.Misc.QuestNode_Root_Hireables" />
+    <root Class="VFECore.Misc.HireableSystem.QuestNode_Root_Hireables" />
 	<isRootSpecial>true</isRootSpecial>
 	<rootSelectionWeight>0.0</rootSelectionWeight>
     <hideInvolvedFactionsInfo>true</hideInvolvedFactionsInfo>

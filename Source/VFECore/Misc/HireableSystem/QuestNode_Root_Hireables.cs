@@ -8,13 +8,14 @@ using HarmonyLib;
 using LudeonTK;
 using RimWorld;
 using RimWorld.QuestGen;
+using UnityEngine.Tilemaps;
 using Verse;
-using VFECore.Misc.HireableSystem;
 using static System.Collections.Specialized.BitVector32;
 using static UnityEngine.ParticleSystem;
 
-namespace VFECore.Misc
+namespace VFECore.Misc.HireableSystem
 {
+    using HireData = List<Pair<PawnKindDef, int>>;
 
     public static class DebugTools
     {
@@ -61,31 +62,43 @@ namespace VFECore.Misc
         {
             Quest quest = QuestGen.quest;
             Slate slate = QuestGen.slate;
+
+            // Todo: find appropriate Map. this gets a random one
             Map map = QuestGen_Get.GetMap(false, null);
+            slate.Set<Map>("map", map, false);
 
             var hireableFaction = slate.Get<HireableFactionDef>("hireableFaction");
             var hireable = slate.Get<Hireable>("hireable");
-            var pawns = slate.Get<List<Pawn>>("pawns");
-            var faction = slate.Get<Faction>("faction");
-            var price = slate.Get<float>("price");
-
-            if (faction != null)
-                Log.Message($"QuestNodeRoot: Faction is {faction.Name}");
-            else
-                Log.Message($"QuestNodeRoot: Faction is null");
-            
-            slate.Set<int>("mercenaryCount", pawns.Count);
-            slate.Set<Pawn>("asker", pawns.First<Pawn>());
-            slate.Set<Map>("map", map, false);
-            slate.Set<int>("deadCount", 0);
-
-
+            var hireData = slate.Get<HireData>("hireData");
+            float price = slate.Get<float>("price");
             int questDurationTicks = 10000;
 
+            Faction worldFaction = hireableFaction.referencedFaction != null ? Find.World.factionManager.FirstFactionOfDef(hireableFaction.referencedFaction) : null;
 
-            QuestPart_HireableContract hireableContractPart = quest.HireableContract(hireable, hireableFaction, pawns, price, null);
+            if (worldFaction != null)
+                Log.Message($"World faction is {worldFaction.Name}");
+
+            Faction faction = worldFaction != null && !worldFaction.HostileTo(Faction.OfPlayer) ? worldFaction : HireableUtil.MakeTemporaryFaction(worldFaction, hireableFaction.referencedFaction);
+
+            if (faction != null)
+                Log.Message($"Setting faction to {faction.Name}");
+            else
+                Log.Message("faction is null?!?");
+
+            List<Pawn> pawns = HireableUtil.generatePawns(in hireData, faction);
 
             QuestPart_ExtraFaction extraFactionPart = quest.ExtraFaction(faction, pawns, ExtraFactionType.MiniFaction, false); //, new List<string> { lodgerRecruitedSignal, becameZombySignal   });
+
+            slate.Set<int>("mercenaryCount", pawns.Count);
+            slate.Set<Pawn>("asker", pawns.First<Pawn>());
+            slate.Set<int>("deadCount", 0);
+
+            string contractCompletedSignal = QuestGenUtility.HardcodedSignalWithQuestID("hireables.ContractCompleted");
+            string assaultColonySignal = QuestGenUtility.HardcodedSignalWithQuestID("hireables.AssaultColony");
+
+            QuestPart_HireableContract hireableContractPart = quest.HireableContract(map.Parent, hireable, hireableFaction, faction, pawns, price, questDurationTicks);
+            hireableContractPart.outSignal_Completed = contractCompletedSignal;
+            hireableContractPart.outSignal_AssaultColony = assaultColonySignal;
 
             foreach (var pawn in pawns)
             {
@@ -96,22 +109,19 @@ namespace VFECore.Misc
 
             quest.DropPods(map.Parent, pawns, null, null, null, null, new bool?(true), true, true, false, null, null, QuestPart.SignalListenMode.OngoingOnly, null, true, false, false, null);
 
-
-            var questPartDelay = quest.Delay(questDurationTicks, delegate
+            quest.Signal(contractCompletedSignal, delegate
             {
-                Log.Message("Stuff in delay happening now.");
-                void outAction()
-                {
-                    Log.Message("Stuff in outAction happening now.");
-                    quest.Letter(LetterDefOf.PositiveEvent, null, null, null, null, false, QuestPart.SignalListenMode.OngoingOnly, null, false, "[mercenariesLeavingLetterText]", null, "[mercenariesLeavingLetterLabel]", null, null);
-                }
+                quest.Letter(LetterDefOf.PositiveEvent, text: "[mercenariesLeavingLetterText]", label: "[mercenariesLeavingLetterLabel]");
 
-                quest.SignalPassWithFaction(faction, null, outAction, null, null);
                 quest.Leave(pawns, null, false, false, null, true);
-                quest.End(QuestEndOutcome.Success, 0, null, null, QuestPart.SignalListenMode.OngoingOnly, true, false);
-                Log.Message("Done with delay stuff.");
-            }, null, null, null, false, null, null, false, "GuestsDepartsIn".Translate(), "GuestsDepartsOn".Translate(), "QuestDelay", false, QuestPart.SignalListenMode.OngoingOnly, false);
+                quest.End(QuestEndOutcome.Success, inSignal: null);
+            });
 
+            quest.Signal(assaultColonySignal, delegate
+            {
+                quest.Letter(LetterDefOf.ThreatBig, text: "They got angry and are assaulting the colony now", label: "Mutiny");
+                quest.End(QuestEndOutcome.Fail, inSignal: null);
+            });
 
             if (faction != null)
                 Log.Message($"QuestNodeRoot end: Faction is {faction.Name}");
@@ -119,7 +129,6 @@ namespace VFECore.Misc
                 Log.Message($"QuestNodeRoot end: Faction is null");
 
             Log.Message($"Quest part reserves faction: {extraFactionPart.QuestPartReserves(faction)}");
-
 
         }
 
