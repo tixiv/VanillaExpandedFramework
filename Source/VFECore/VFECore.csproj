@@ -478,6 +478,7 @@
     <Compile Include="Genes\Harmony\FoodUtility_GetMeatSourceCategoryFromCorpse.cs" />
     <Compile Include="Genes\Harmony\ThoughtWorker_HumanLeatherApparel_CurrentThoughtState.cs" />
     <Compile Include="Misc\HireableSystem\QuestNode_Root_Hireables.cs" />
+    <Compile Include="Misc\HireableSystem\QuestPart_HireableContract.cs" />
     <Compile Include="MovingBases\CaravanArrivalAction_AttackMovingBase.cs" />
     <Compile Include="MovingBases\CaravanArrivalAction_MovingBase.cs" />
     <Compile Include="MovingBases\Caravan_PathFollower_ExposeData_Patch.cs" />

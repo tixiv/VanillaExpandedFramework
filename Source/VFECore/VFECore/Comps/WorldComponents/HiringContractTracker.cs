@@ -5,6 +5,7 @@ using RimWorld.Planet;
 using Verse;
 using Verse.AI;
 using VFECore.Misc;
+using VFECore.Misc.HireableSystem;
 
 namespace VFECore
 {
@@ -15,17 +16,71 @@ namespace VFECore
         public Dictionary<Hireable, List<ExposablePair>>
             deadCount = new Dictionary<Hireable, List<ExposablePair>>(); //the pair being amount of dead people and at what tick it expires
 
-        public int                endTicks;
-        public HireableFactionDef factionDef;
-        public Hireable           hireable;
-        public List<Pawn>         pawns = new List<Pawn>();
-        public float              price;
+        // These variables will not be used anymore. They are only used to convert existing savegames to the new quest based hireables
+        public class legacyData {
+            public int endTicks;
+            public HireableFactionDef factionDef;
+            public Hireable hireable;
+            public List<Pawn> pawns = [];
+            public float price;
+        }
+
+        public static Quest getQuest()
+        {
+            var quests = Find.QuestManager.QuestsListForReading.Where(q => q.root.defName ==  "VFECore_Hireables" && q.State == QuestState.Ongoing);
+
+            if (quests.Any())
+            {
+                Log.Message($"Returning quest: {quests.First().name}");
+                return quests.First();
+            }
+
+            return null;
+        }
+
+        public static ContractInfo getContractInfo()
+        {
+            var quest = getQuest();
+
+            if (quest != null)
+                Log.Message("Found quest: " + quest.name);
+
+            if (quest == null)
+                return null;
+
+            foreach (var q in quest.PartsListForReading)
+            {
+                if (q != null)
+                    Log.Message($"QestPart {q.ToString()}");
+                else
+                    Log.Message("null questPart");
+            }
+
+            var questParts = quest.PartsListForReading.OfType<QuestPart_HireableContract>();
+
+            if (questParts != null)
+            {
+                Log.Message("questParts is not null.");
+                if (questParts.Any())
+                {
+                    Log.Message("Retruning contract info from quest");
+                    return questParts.First().contractInfo;
+                }
+            }
+            else
+                Log.Message("questParts is null.");
+
+            return null;
+        }
+
 
         public HiringContractTracker(World world) : base(world)
         {
         }
 
-        public string GetCallLabel() => "VEF.ContractInfo".Translate((factionDef?.label ?? hireable.Key).CapitalizeFirst());
+        // public string GetCallLabel() => "VEF.ContractInfo".Translate((factionDef?.label ?? hireable.Key).CapitalizeFirst());
+
+        public string GetCallLabel() => "VEF.ContractInfo".Translate("Foobar");
 
         public string GetInfoText() => "";
 
@@ -39,8 +94,20 @@ namespace VFECore
         public FloatMenuOption CommFloatMenuOption(Building_CommsConsole console, Pawn negotiator) => FloatMenuUtility.DecoratePrioritizedTask(
          new FloatMenuOption(GetCallLabel(), () => console.GiveUseCommsJob(negotiator, this), MenuOptionPriority.InitiateSocial), negotiator, console);
 
-        public bool IsHired(Pawn pawn) => this.pawns.Contains(pawn);
+        public static bool IsHired(Pawn pawn) {
+            var quest = getQuest();
+            if (quest != null)
+            {
+                foreach (QuestPart_ExtraFaction qpef in quest.PartsListForReading.OfType<QuestPart_ExtraFaction>())
+                {
+                    if (qpef.affectedPawns.Contains(pawn))
+                        return true;
+                }
+            }
+            return false;
+        }
 
+        /*
         public void SetNewContract(int days, List<Pawn> pawns, Hireable hireable, HireableFactionDef faction = null, float price = 0)
         {
             endTicks      = Find.TickManager.TicksAbs + days * GenDate.TicksPerDay;
@@ -49,15 +116,23 @@ namespace VFECore
             factionDef    = faction;
             this.price    = price;
         }
+        */
 
         public override void WorldComponentTick()
         {
             base.WorldComponentTick();
 
+            /* 
             if (Find.TickManager.TicksAbs % 150 == 0 && Find.TickManager.TicksAbs > endTicks && this.pawns.Any())
                 this.EndContract();
+            */
         }
 
+        public void endContract()
+        {
+        }
+
+        /*
         public void EndContract()
         {
             var deadPeople = 0;
@@ -106,7 +181,14 @@ namespace VFECore
             if (this.pawns.Count <= 0)
                 this.hireable = null;
         }
+        */
 
+        public static void breakContract()
+        {
+        
+        }
+
+        /*
         public void BreakContract()
         {
             if (this.pawns.Count > 0)
@@ -138,6 +220,7 @@ namespace VFECore
             this.hireable = null;
             this.pawns.Clear();
         }
+        */
 
         public float GetFactorForHireable(Hireable hireable)
         {
@@ -161,11 +244,11 @@ namespace VFECore
         {
             base.ExposeData();
 
-            Scribe_Values.Look(ref endTicks, nameof(endTicks));
+            // Scribe_Values.Look(ref endTicks, nameof(endTicks));
 
-            Scribe_Collections.Look(ref this.pawns, nameof(this.pawns), LookMode.Reference);
+            // Scribe_Collections.Look(ref this.pawns, nameof(this.pawns), LookMode.Reference);
 
-            Scribe_References.Look(ref hireable, nameof(hireable));
+            // Scribe_References.Look(ref hireable, nameof(hireable));
             var deadCountKey = new List<Hireable>(deadCount.Keys);
             Scribe_Collections.Look(ref deadCountKey, nameof(deadCountKey), LookMode.Reference);
             var deadCountValue = new List<List<ExposablePair>>(deadCount.Values);
@@ -185,8 +268,8 @@ namespace VFECore
             for (var index = 0; index < deadCountKey.Count; index++)
                 deadCount.Add(deadCountKey[index], deadCountValue[index]);
 
-            Scribe_Values.Look(ref price, "price");
-            Scribe_Defs.Look(ref factionDef, "faction");
+            // Scribe_Values.Look(ref price, "price");
+            // Scribe_Defs.Look(ref factionDef, "faction");
         }
     }
 

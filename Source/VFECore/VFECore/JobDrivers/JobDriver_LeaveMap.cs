@@ -16,6 +16,8 @@ namespace VFECore
 
         protected override IEnumerable<Toil> MakeNewToils()
         {
+            return [];
+            /*
             yield return Toils_Goto.GotoCell(TargetIndex.A, PathEndMode.ClosestTouch);
             yield return new Toil
                          {
@@ -26,6 +28,7 @@ namespace VFECore
                                               Find.World.GetComponent<HiringContractTracker>().pawns.Remove(this.pawn);
                                           }
                          }.FailOn(() => this.pawn.Dead);
+            */
         }
     }
 }

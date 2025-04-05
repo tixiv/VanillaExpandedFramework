@@ -3,19 +3,21 @@ using UnityEngine;
 using Verse;
 using VFECore.UItils;
 
-namespace VFECore.Misc
+namespace VFECore.Misc.HireableSystem
 {
     using System.Linq;
 
     public class Dialog_ContractInfo : Window
     {
-        private readonly HiringContractTracker contract;
+        private readonly HiringContractTracker contractTracker;
         private          Vector2               pawnsScrollPos = new Vector2(0, 0);
+        private readonly ContractInfo info;
 
         public Dialog_ContractInfo(HiringContractTracker tracker)
         {
-            contract   = tracker;
+            contractTracker   = tracker;
             forcePause = true;
+            info = HiringContractTracker.getContractInfo();
         }
 
         public override    Vector2 InitialSize => new Vector2(750f, 650f);
@@ -30,12 +32,12 @@ namespace VFECore.Misc
             titleRect.xMin += 60f;
             Text.Anchor    =  TextAnchor.MiddleLeft;
             Text.Font      =  GameFont.Medium;
-            Widgets.Label(titleRect, "VEF.ContractTitle".Translate((contract.factionDef?.label ?? contract.hireable.Key).CapitalizeFirst()));
-            if (contract.factionDef != null)
+            Widgets.Label(titleRect, "VEF.ContractTitle".Translate((info.factionDef?.label ?? info.hireable.Key).CapitalizeFirst()));
+            if (info.factionDef != null)
             {
                 Widgets.DrawLightHighlight(iconRect);
-                GUI.color = contract.factionDef.Color;
-                Widgets.DrawTextureFitted(iconRect, contract.factionDef.Texture, 1f);
+                GUI.color = info.factionDef.Color;
+                Widgets.DrawTextureFitted(iconRect, info.factionDef.Texture, 1f);
                 GUI.color = Color.white;
             }
 
@@ -46,7 +48,7 @@ namespace VFECore.Misc
             Widgets.Label(pawnsRect.TakeTopPart(20f), "VEF.PawnsList".Translate());
             Widgets.DrawMenuSection(pawnsRect);
             pawnsRect = pawnsRect.ContractedBy(5f);
-            var pawns = contract.pawns.Where(x => x is not null).ToList();
+            var pawns = info.pawns.Where(x => x is not null).ToList();
             var viewRect = new Rect(0, 0, pawnsRect.width - 20f, pawns.Count * 40f);
             Widgets.BeginScrollView(pawnsRect, ref pawnsScrollPos, viewRect);
             foreach (var pawn in pawns)
@@ -72,18 +74,18 @@ namespace VFECore.Misc
             Text.Font   = GameFont.Small;
             var textRect = infoRect.TakeTopPart(30f);
             Widgets.Label(textRect.LeftHalf(),  "VEF.Spent".Translate());
-            Widgets.Label(textRect.RightHalf(), contract.price.ToStringMoney().Colorize(ColoredText.CurrencyColor));
+            Widgets.Label(textRect.RightHalf(), info.price.ToStringMoney().Colorize(ColoredText.CurrencyColor));
             Widgets.DrawLineHorizontal(textRect.x, textRect.y + 30f, textRect.width);
             textRect.y    += 30;
             infoRect.yMin += 30;
             Widgets.Label(textRect.LeftHalf(), "VEF.TimeLeft".Translate());
-            int remainingTicks = (this.contract.endTicks - Find.TickManager.TicksAbs);
+            int remainingTicks = (info.endTicks - Find.TickManager.TicksAbs);
             Widgets.Label(textRect.RightHalf(), (remainingTicks < 0 ? 0 : remainingTicks).ToStringTicksToPeriodVerbose().Colorize(ColoredText.DateTimeColor));
             if (Widgets.ButtonText(infoRect.TakeBottomPart(40f), "VEF.CancelContract".Translate()))
                 Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation("VEF.NoRefund".Translate(), () =>
                                                                                                       {
                                                                                                           Close();
-                                                                                                          this.contract.endTicks = Find.TickManager.TicksAbs;
+                                                                                                          this.contractTracker.endContract();
                                                                                                       }, true, "VEF.CancelContract".Translate()));
             Text.Anchor = anchor;
             Text.Font   = font;
