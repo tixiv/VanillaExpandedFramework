@@ -16,7 +16,7 @@ namespace VFECore.Misc.HireableSystem
     {
         
 
-        public static Faction MakeTemporaryFaction(Faction worldFaction, FactionDef refFaction)
+        public static Faction MakeTemporaryFaction(FactionDef refFaction)
         {
             FactionDef factionDef = refFaction ?? FactionDefOf.OutlanderCivil;
 
@@ -35,28 +35,28 @@ namespace VFECore.Misc.HireableSystem
                 }
             }
 
-            /*
-            listFactionRelations.Add(new FactionRelation
-            {
-                other = Faction.OfPlayer,
-                kind = FactionRelationKind.Neutral
-            });
-            */
-
             FactionGeneratorParms factionGeneratorParms = new FactionGeneratorParms(factionDef, default(IdeoGenerationParms), new bool?(true));
             Faction faction = FactionGenerator.NewGeneratedFactionWithRelations(factionGeneratorParms, listFactionRelations);
             faction.temporary = false;
             Find.FactionManager.Add(faction);
-
-            //if (worldFaction != null)
-            //    faction.Name = worldFaction.Name;
 
             Log.Message($"Created temporary faction: {faction.Name}. isHostile: {faction.HostileTo(Faction.OfPlayer)}");
 
             return faction;
         }
 
-        
+        // this is used to make a fake faction that is like the hired one,
+        // but it won't attack the player (in contrast to the original one)
+        public static Faction MakeTemporaryFaction(Faction referenceWorldFaction)
+        {
+            Faction faction = MakeTemporaryFaction(referenceWorldFaction.def);
+
+            faction.Name = referenceWorldFaction.Name + "[leaving peacefully]";
+            faction.color = referenceWorldFaction.color;
+
+            return faction;
+        }
+
 
         public static List<Pawn> generatePawns(ref readonly HireData hireData, Faction faction)
         {

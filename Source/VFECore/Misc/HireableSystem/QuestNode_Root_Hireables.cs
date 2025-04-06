@@ -73,21 +73,19 @@ namespace VFECore.Misc.HireableSystem
             float price = slate.Get<float>("price");
             int questDurationTicks = 10000;
 
-            Faction worldFaction = hireableFaction.referencedFaction != null ? Find.World.factionManager.FirstFactionOfDef(hireableFaction.referencedFaction) : null;
-
-            if (worldFaction != null)
-                Log.Message($"World faction is {worldFaction.Name}");
-
-            Faction faction = worldFaction != null && !worldFaction.HostileTo(Faction.OfPlayer) ? worldFaction : HireableUtil.MakeTemporaryFaction(worldFaction, hireableFaction.referencedFaction);
+            Faction faction = getOrMakeFactionOfDef(hireableFaction);
 
             if (faction != null)
                 Log.Message($"Setting faction to {faction.Name}");
             else
-                Log.Message("faction is null?!?");
+            {
+                Log.Error("faction is null?!?");
+                return;
+            }
 
             List<Pawn> pawns = HireableUtil.generatePawns(in hireData, faction);
 
-            QuestPart_ExtraFaction extraFactionPart = quest.ExtraFaction(faction, pawns, ExtraFactionType.MiniFaction, false); //, new List<string> { lodgerRecruitedSignal, becameZombySignal   });
+            QuestPart_ExtraFaction extraFactionPart = quest.ExtraFaction(faction, pawns, ExtraFactionType.MiniFaction, false);
 
             slate.Set<int>("mercenaryCount", pawns.Count);
             slate.Set<Pawn>("asker", pawns.First<Pawn>());
@@ -130,6 +128,16 @@ namespace VFECore.Misc.HireableSystem
 
             Log.Message($"Quest part reserves faction: {extraFactionPart.QuestPartReserves(faction)}");
 
+        }
+
+        private Faction getOrMakeFactionOfDef(HireableFactionDef hireableFaction)
+        {
+            Faction worldFaction = hireableFaction.referencedFaction != null ? Find.World.factionManager.FirstFactionOfDef(hireableFaction.referencedFaction) : null;
+
+            if (worldFaction != null)
+                Log.Message($"World faction is {worldFaction.Name}");
+
+            return worldFaction ?? HireableUtil.MakeTemporaryFaction(hireableFaction.referencedFaction);
         }
 
         protected override bool TestRunInt(Slate slate)

@@ -89,7 +89,11 @@ namespace VFECore.Misc.HireableSystem
 
         private void AssaultColony(HistoryEventDef reason)
         {
-            if (this.faction.HasGoodwill)
+            if (this.faction.HostileTo(Faction.OfPlayer))
+            {
+                // achieved: faction is hostile to player anyway. The faction can just attack. Nothing to do.
+            }
+            else if (this.faction.HasGoodwill)
             {
                 Faction.OfPlayer.TryAffectGoodwillWith(this.faction, Faction.OfPlayer.GoodwillToMakeHostile(this.faction), true, false, reason, null);
             }
@@ -100,7 +104,6 @@ namespace VFECore.Misc.HireableSystem
 
             foreach (Pawn p in contractInfo.pawns)
                 p.GetLord()?.Notify_PawnLost(p, PawnLostCondition.ForcedByQuest, null);
-
 
 
             foreach (Pawn p in contractInfo.pawns)
@@ -119,12 +122,26 @@ namespace VFECore.Misc.HireableSystem
                     lord.AddPawn(p);
         }
 
+        // Overriding QuestPart_Delay::DelayFinished() because we use this to end the contrat with
+        // the hired faction. We now see that the faction doesn't attack the player, even if it is
+        // normally hostile while leaving the map.
         protected override void DelayFinished()
         {
             base.DelayFinished();
 
-            foreach(Pawn p in contractInfo.pawns)
-                p.SetFaction(faction, null);
+            Faction factionToLeaveMap = this.faction;
+
+            // If the original faction is hostile to the player (like pirates eg.) but the player
+            // finished the quest without violating the mercenaries, then we generate a temporary faction for
+            // the mercenaries to leave the map nicely (or stay in the medical bay until healed).
+            if (factionToLeaveMap.HostileTo(Faction.OfPlayer))
+            {
+                factionToLeaveMap = HireableUtil.MakeTemporaryFaction(factionToLeaveMap);
+                quest.SetFactionHidden(factionToLeaveMap, false);
+            }
+
+            foreach (Pawn p in contractInfo.pawns.Where(p => !p.Dead))
+                p.SetFaction(factionToLeaveMap);
 
             Find.SignalManager.SendSignal(new Signal(outSignal_Completed));
             Log.Message("Contract finished");
