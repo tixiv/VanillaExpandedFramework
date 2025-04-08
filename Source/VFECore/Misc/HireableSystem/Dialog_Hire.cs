@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
+using RimWorld.Planet;
 using RimWorld.QuestGen;
 using UnityEngine;
 using UnityEngine.Tilemaps;
@@ -30,6 +31,9 @@ namespace VFECore.Misc.HireableSystem
         private int daysAmount;
         private string daysAmountBuffer;
 
+        TargetChoser targetChooser;
+        private Window pauseWindow = new InvisiblePauseWindow();
+
         public Dialog_Hire(Thing negotiator, Hireable hireable)
         {
             targetMap = negotiator.Map;
@@ -41,6 +45,7 @@ namespace VFECore.Misc.HireableSystem
             availableSilver = targetMap.listerThings.ThingsOfDef(ThingDefOf.Silver)
                                     .Where(x => !x.Position.Fogged(x.Map) && (targetMap.areaManager.Home[x.Position] || x.IsInAnyStorage())).Sum(t => t.stackCount);
             riskMultiplier = Find.World.GetComponent<HiringContractTracker>().GetFactorForHireable(hireable);
+            targetChooser = new TargetChoser(targetMap);
         }
 
         public override Vector2 InitialSize => new Vector2(750f, 650f);
@@ -79,35 +84,60 @@ namespace VFECore.Misc.HireableSystem
 
                 List<Pair<PawnKindDef, int>> list = [];
                 foreach (KeyValuePair<PawnKindDef, Pair<int, string>> kvp in hireData.Where(kvp => kvp.Value.First > 0))
-                    list.Add(new Pair<PawnKindDef, int>( kvp.Key, kvp.Value.First) );
+                    list.Add(new Pair<PawnKindDef, int>(kvp.Key, kvp.Value.First));
 
                 HireableUtil.SpawnHiredPawnsQuest(hireable, curFaction, in list, daysAmount, CostFinal);
             }
         }
 
+        private void TargetChosen(int tile, TransportPodsArrivalAction arrivalAction)
+        {
+            Log.Message($"Chosen: {tile} {arrivalAction}");
+            
+            // We go to the colony again so it is clear we are still at the coms console
+            CameraJumper.TryHideWorld();
+
+            // Remove the pause window and show out dialog again. (The dialog of course also forces the game paused)
+            Find.WindowStack.TryRemove(pauseWindow, false);
+            Find.WindowStack.Add(this);
+        }
+
+
+        public void OnSelectTargetKeyPressed()
+        {
+            // We hide this dialog and show an invisible Window which also forces the game to pause instead.
+            // This is so the game doesn't unpause while choosing a target
+            Find.WindowStack.TryRemove(this, false);
+            Find.WindowStack.Add(pauseWindow);
+
+            TargetChoser targetChooser = new TargetChoser(targetMap);
+            targetChooser.StartChoosingDestination(TargetChosen);
+        }
+
+
         public override void DoWindowContents(Rect inRect)
         {
-            var rect   = new Rect(inRect);
+            var rect = new Rect(inRect);
             var anchor = Text.Anchor;
-            var font   = Text.Font;
+            var font = Text.Font;
             Text.Anchor = TextAnchor.MiddleLeft;
-            Text.Font   = GameFont.Medium;
+            Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(rect.x, rect.y, rect.width, 40f), hireable.GetCallLabel());
-            Text.Font =  GameFont.Small;
+            Text.Font = GameFont.Small;
             rect.yMin += 40f;
             Widgets.Label(new Rect(rect.x, rect.y, rect.width, 20f), "VEF.AvailableSilver".Translate(availableSilver.ToStringMoney()));
             rect.yMin += 30f;
             foreach (var def in hireable) DoHireableFaction(ref rect, def);
             var breakDownRect = rect.TakeTopPart(100f);
             breakDownRect.xMin += 115f;
-            Text.Anchor        =  TextAnchor.UpperLeft;
-            Text.Font          =  GameFont.Small;
+            Text.Anchor = TextAnchor.UpperLeft;
+            Text.Font = GameFont.Small;
             var infoRect = breakDownRect.TopPartPixels(20f);
             Widgets.Label(infoRect.LeftHalf(), "VEF.Breakdown".Translate());
             Text.Anchor = TextAnchor.MiddleCenter;
-            Text.Font   = GameFont.Tiny;
+            Text.Font = GameFont.Tiny;
             Widgets.Label(infoRect.RightHalf(), "VEF.LongTerm".Translate().Colorize(ColoredText.SubtleGrayColor));
-            Text.Font  =  GameFont.Small;
+            Text.Font = GameFont.Small;
             infoRect.y += 20f;
             Widgets.DrawLightHighlight(infoRect);
             Widgets.Label(infoRect.LeftHalf(), "VEF.DayAmount".Translate());
@@ -115,18 +145,24 @@ namespace VFECore.Misc.HireableSystem
                                         Mathf.Max(Mathf.FloorToInt(Mathf.Pow(availableSilver / (riskMultiplier + 1f) / CostPawns(), 1f / 0.8f)), 1));
             infoRect.y += 20f;
             Widgets.DrawHighlight(infoRect);
-            Widgets.Label(infoRect.LeftHalf(),  "VEF.Cost".Translate());
+            Widgets.Label(infoRect.LeftHalf(), "VEF.Cost".Translate());
             Widgets.Label(infoRect.RightHalf(), CostBase.ToStringMoney());
             infoRect.y += 20f;
             Widgets.DrawLightHighlight(infoRect);
-            Widgets.Label(infoRect.LeftHalf(),  "VEF.RiskMult".Translate());
+            Widgets.Label(infoRect.LeftHalf(), "VEF.RiskMult".Translate());
             Widgets.Label(infoRect.RightHalf(), riskMultiplier.ToStringPercent());
             infoRect.y += 20f;
             Widgets.DrawHighlight(infoRect);
-            Widgets.Label(infoRect.LeftHalf(),  "VEF.TotalPrice".Translate());
+            Widgets.Label(infoRect.LeftHalf(), "VEF.TotalPrice".Translate());
             Widgets.Label(infoRect.RightHalf(), CostFinal.ToStringMoney());
-            if (Widgets.ButtonText(rect.TakeLeftPart(120f).BottomPartPixels(40f), "Cancel".Translate())) OnCancelKeyPressed();
-            if (Widgets.ButtonText(rect.TakeRightPart(120f).BottomPartPixels(40f), "Confirm".Translate()))
+
+            var buttonRect = rect.BottomPartPixels(40f);
+
+            var selectTargetButtonRect = buttonRect.LeftHalf();
+
+            if (Widgets.ButtonText(buttonRect.TakeLeftPart(120f), "Cancel".Translate())) OnCancelKeyPressed();
+            if (Widgets.ButtonText(selectTargetButtonRect.TakeRightPart(120f), "Select target".Translate())) OnSelectTargetKeyPressed();
+            if (Widgets.ButtonText(buttonRect.TakeRightPart(120f), "Confirm".Translate()))
             {
                 if (CostFinal > availableSilver)
                     Messages.Message("NotEnoughSilver".Translate(), MessageTypeDefOf.RejectInput);
@@ -137,7 +173,7 @@ namespace VFECore.Misc.HireableSystem
             Text.Font = GameFont.Tiny;
             Widgets.Label(rect.ContractedBy(30f, 0f), "VEF.HiringDesc".Translate(hireable.Key).Colorize(ColoredText.SubtleGrayColor));
             Text.Anchor = anchor;
-            Text.Font   = font;
+            Text.Font = font;
         }
 
         private void DoHireableFaction(ref Rect inRect, HireableFactionDef def)
@@ -145,19 +181,19 @@ namespace VFECore.Misc.HireableSystem
             var rect = inRect.TopPartPixels(Mathf.Max(20f + def.pawnKinds.Count * 30f, 120f));
             inRect.yMin += rect.height;
             var titleRect = rect.TakeTopPart(20f);
-            var iconRect  = rect.LeftPartPixels(105f).ContractedBy(5f);
+            var iconRect = rect.LeftPartPixels(105f).ContractedBy(5f);
             titleRect.x += 115f;
-            Text.Anchor =  TextAnchor.MiddleLeft;
-            Text.Font   =  GameFont.Tiny;
+            Text.Anchor = TextAnchor.MiddleLeft;
+            Text.Font = GameFont.Tiny;
             var nameRect = new Rect(titleRect);
             Widgets.Label(titleRect, "VEF.Hire".Translate(def.LabelCap));
-            titleRect.x     += 200f;
-            titleRect.width =  60f;
-            Text.Anchor     =  TextAnchor.MiddleCenter;
+            titleRect.x += 200f;
+            titleRect.width = 60f;
+            Text.Anchor = TextAnchor.MiddleCenter;
             var valueRect = new Rect(titleRect);
             Widgets.Label(titleRect, "VEF.Value".Translate());
-            titleRect.x     += 100f;
-            titleRect.width =  300f;
+            titleRect.x += 100f;
+            titleRect.width = 300f;
             var numRect = new Rect(titleRect);
             Text.Font = GameFont.Tiny;
             Widgets.Label(titleRect, "VEF.ChooseNumberOfUnits".Translate().Colorize(ColoredText.SubtleGrayColor));
@@ -169,17 +205,17 @@ namespace VFECore.Misc.HireableSystem
             var highlight = true;
             foreach (PawnKindDef kind in def.pawnKinds)
             {
-                nameRect.y  += 20f;
+                nameRect.y += 20f;
                 valueRect.y += 20f;
-                numRect.y   += 20f;
+                numRect.y += 20f;
                 Rect fullRect = new Rect(nameRect.x - 4f, nameRect.y, nameRect.width + valueRect.width + numRect.width, 20f);
                 if (highlight) Widgets.DrawHighlight(fullRect);
-                highlight   = !highlight;
+                highlight = !highlight;
                 Text.Anchor = TextAnchor.MiddleLeft;
                 Widgets.Label(nameRect, kind.LabelCap);
                 Text.Anchor = TextAnchor.MiddleCenter;
                 Widgets.Label(valueRect, kind.combatPower.ToStringByStyle(ToStringStyle.Integer));
-                var data   = hireData[kind];
+                var data = hireData[kind];
                 var amount = data.First;
                 var buffer = data.Second;
                 UIUtility.DrawCountAdjuster(ref amount, numRect, ref buffer, 0, 99, curFaction != null && curFaction != def, null, Mathf.Max(Mathf.FloorToInt(Mathf.Pow(
@@ -188,10 +224,33 @@ namespace VFECore.Misc.HireableSystem
                 if (amount != data.First || buffer != data.Second)
                 {
                     hireData[kind] = new Pair<int, string>(amount, buffer);
-                    if (amount > 0  && curFaction == null) curFaction                                                    = def;
+                    if (amount > 0 && curFaction == null) curFaction = def;
                     if (amount == 0 && curFaction == def && def.pawnKinds.All(pk => hireData[pk].First == 0)) curFaction = null;
                 }
             }
+        }
+    }
+
+    public class InvisiblePauseWindow : Window
+    {
+
+        // Override the window's size to make it effectively "invisible"
+        public override Vector2 InitialSize => new Vector2(0f, 0f);  // Make it have no size (invisible)
+
+        public InvisiblePauseWindow()
+        {
+            // Make the window invisible and prevent it from interacting with the user
+            this.doCloseButton = false;
+            this.preventSave = true;
+            this.forcePause = true;
+            this.preventCameraMotion = false;        
+        }
+
+        // Override the DoWindowContents to not render anything
+        public override void DoWindowContents(Rect inRect)
+        {
+            // This window draws nothing, but forces the game to pause
+            // No content is drawn here
         }
     }
 }

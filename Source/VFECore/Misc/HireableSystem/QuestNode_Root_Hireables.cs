@@ -1,17 +1,10 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using HarmonyLib;
 using LudeonTK;
 using RimWorld;
 using RimWorld.QuestGen;
-using UnityEngine.Tilemaps;
 using Verse;
-using static System.Collections.Specialized.BitVector32;
-using static UnityEngine.ParticleSystem;
 
 namespace VFECore.Misc.HireableSystem
 {
@@ -54,8 +47,8 @@ namespace VFECore.Misc.HireableSystem
 
     public class QuestNode_Root_Hireables : QuestNode
     {
-        private void foo(){
-            // Pawn pawn = quest.GeneratePawn(PawnKindDefOf.Refugee, faction, true, null, 0f, true, null, 0f, 0f, false, true, DevelopmentalStage.Adult, true);
+        private void foo(Quest quest, Faction faction){
+            Pawn pawn = quest.GeneratePawn(PawnKindDefOf.Refugee, faction, true, null, 0f, true, null, 0f, 0f, false, true, DevelopmentalStage.Adult, true);
         }
 
         protected override void RunInt()
@@ -73,7 +66,7 @@ namespace VFECore.Misc.HireableSystem
             float price = slate.Get<float>("price");
             int questDurationTicks = 10000;
 
-            Faction faction = getOrMakeFactionOfDef(hireableFaction);
+            Faction faction = getOrMakeFactionOfDef(in hireableFaction, out Faction temporaryFaction);
 
             if (faction != null)
                 Log.Message($"Setting faction to {faction.Name}");
@@ -83,18 +76,26 @@ namespace VFECore.Misc.HireableSystem
                 return;
             }
 
-            List<Pawn> pawns = HireableUtil.generatePawns(in hireData, faction);
-
-            QuestPart_ExtraFaction extraFactionPart = quest.ExtraFaction(faction, pawns, ExtraFactionType.MiniFaction, false);
+            List<Pawn> pawns = HireableUtil.generatePawns(in hireData, faction, quest);
 
             slate.Set<int>("mercenaryCount", pawns.Count);
             slate.Set<Pawn>("asker", pawns.First<Pawn>());
             slate.Set<int>("deadCount", 0);
 
+            // Explicit Signals
+
+            string removePawnSignal = QuestGenUtility.HardcodedSignalWithQuestID("hireables.RemovePawn");
             string contractCompletedSignal = QuestGenUtility.HardcodedSignalWithQuestID("hireables.ContractCompleted");
             string assaultColonySignal = QuestGenUtility.HardcodedSignalWithQuestID("hireables.AssaultColony");
 
-            QuestPart_HireableContract hireableContractPart = quest.HireableContract(map.Parent, hireable, hireableFaction, faction, pawns, price, questDurationTicks);
+            // This quest part will make the pawns display a second faction, their home faction, while being hired.
+            // This happens as long as the quest state is ongoing and this part includes the pawns.
+
+            QuestPart_ExtraFaction extraFactionPart = quest.ExtraFaction(faction, pawns, ExtraFactionType.MiniFaction, false, [removePawnSignal]);
+
+
+            QuestPart_HireableContract hireableContractPart = quest.HireableContract(hireable, hireableFaction, faction, temporaryFaction, pawns, price, questDurationTicks);
+            hireableContractPart.outSignal_RemovePawn = removePawnSignal;
             hireableContractPart.outSignal_Completed = contractCompletedSignal;
             hireableContractPart.outSignal_AssaultColony = assaultColonySignal;
 
@@ -105,19 +106,44 @@ namespace VFECore.Misc.HireableSystem
                     pawn.playerSettings.hostilityResponse = HostilityResponseMode.Attack;
             }
 
-            quest.DropPods(map.Parent, pawns, null, null, null, null, new bool?(true), true, true, false, null, null, QuestPart.SignalListenMode.OngoingOnly, null, true, false, false, null);
+            
+
+            quest.DropPods(map.Parent, pawns, sendStandardLetter: new bool?(true), useTradeDropSpot: true, dropSpot: null);
 
             quest.Signal(contractCompletedSignal, delegate
             {
-                quest.Letter(LetterDefOf.PositiveEvent, text: "[mercenariesLeavingLetterText]", label: "[mercenariesLeavingLetterLabel]");
+                quest.Letter(LetterDefOf.PositiveEvent, text: "[mercenariesLeavingLetterText]", label: "[mercenariesLeavingLetterLabel]", lookTargets: pawns.Where(p => !p.Dead));
 
-                quest.Leave(pawns, null, false, false, null, true);
-                quest.End(QuestEndOutcome.Success, inSignal: null);
+                quest.Leave(pawns, sendStandardLetter: false, leaveOnCleanup: false, wakeUp: false);
+
+                quest.Delay(500, delegate
+                {
+                    
+                    quest.DebugAction( delegate
+                    {
+                        Log.Message("Yeay! delayed execution!!");
+                        QuestUtil.LogPawnInfo(pawns[0], quest);
+                    });
+                    quest.Delay(500, delegate
+                    {
+
+                        quest.DebugAction((SignalArgs args) =>
+                        {
+                            Log.Message("Yeay! delayed execution 2!!");
+                            QuestUtil.LogPawnInfo(pawns[0], quest);
+                        });
+
+                        quest.End(QuestEndOutcome.Success, inSignal: null, sendStandardLetter: true);
+
+                    });
+
+                });
+
             });
 
             quest.Signal(assaultColonySignal, delegate
             {
-                quest.Letter(LetterDefOf.ThreatBig, text: "They got angry and are assaulting the colony now", label: "Mutiny");
+                quest.Letter(LetterDefOf.ThreatBig, text: "They got angry and are assaulting the colony now", label: "Mutiny", lookTargets: pawns.Where(p => !p.Dead));
                 quest.End(QuestEndOutcome.Fail, inSignal: null);
             });
 
@@ -130,14 +156,22 @@ namespace VFECore.Misc.HireableSystem
 
         }
 
-        private Faction getOrMakeFactionOfDef(HireableFactionDef hireableFaction)
+        private Faction getOrMakeFactionOfDef(in HireableFactionDef hireableFaction, out Faction temporaryFaction)
         {
             Faction worldFaction = hireableFaction.referencedFaction != null ? Find.World.factionManager.FirstFactionOfDef(hireableFaction.referencedFaction) : null;
 
             if (worldFaction != null)
                 Log.Message($"World faction is {worldFaction.Name}");
 
-            return worldFaction ?? HireableUtil.MakeTemporaryFaction(hireableFaction.referencedFaction);
+            if (worldFaction != null)
+            {
+                temporaryFaction = null;
+                return worldFaction;
+            }
+            else
+            {
+                return temporaryFaction = HireableUtil.MakeTemporaryFactionFromDef(hireableFaction.referencedFaction);
+            }
         }
 
         protected override bool TestRunInt(Slate slate)

@@ -11,12 +11,13 @@ using Verse;
 
 namespace VFECore.Misc.HireableSystem
 {
+    using static System.Collections.Specialized.BitVector32;
     using HireData = List<Pair<PawnKindDef, int>>;
     public static class HireableUtil
     {
         
 
-        public static Faction MakeTemporaryFaction(FactionDef refFaction)
+        private static Faction MakeTemporaryFactionFromDefInternal(FactionDef refFaction)
         {
             FactionDef factionDef = refFaction ?? FactionDefOf.OutlanderCivil;
 
@@ -37,28 +38,39 @@ namespace VFECore.Misc.HireableSystem
 
             FactionGeneratorParms factionGeneratorParms = new FactionGeneratorParms(factionDef, default(IdeoGenerationParms), new bool?(true));
             Faction faction = FactionGenerator.NewGeneratedFactionWithRelations(factionGeneratorParms, listFactionRelations);
+            
+            Log.Message($"Created temporary faction: {faction.Name}. isHostile: {faction.HostileTo(Faction.OfPlayer)}");
+
+            return faction;
+        }
+
+        public static Faction MakeTemporaryFactionFromDef(FactionDef refFaction)
+        {
+            Faction faction = MakeTemporaryFactionFromDefInternal(refFaction);
+
             faction.temporary = false;
             Find.FactionManager.Add(faction);
-
-            Log.Message($"Created temporary faction: {faction.Name}. isHostile: {faction.HostileTo(Faction.OfPlayer)}");
 
             return faction;
         }
 
         // this is used to make a fake faction that is like the hired one,
         // but it won't attack the player (in contrast to the original one)
-        public static Faction MakeTemporaryFaction(Faction referenceWorldFaction)
+        public static Faction MakeFirendlyTemporaryFactionFromReference(Faction referenceWorldFaction)
         {
-            Faction faction = MakeTemporaryFaction(referenceWorldFaction.def);
+            Faction faction = MakeTemporaryFactionFromDefInternal(referenceWorldFaction.def);
 
-            faction.Name = referenceWorldFaction.Name + "[leaving peacefully]";
+            faction.Name = referenceWorldFaction.Name + " [non hostile]";
             faction.color = referenceWorldFaction.color;
+
+            faction.temporary = false;
+            Find.FactionManager.Add(faction);
 
             return faction;
         }
 
 
-        public static List<Pawn> generatePawns(ref readonly HireData hireData, Faction faction)
+        public static List<Pawn> generatePawns(ref readonly HireData hireData, Faction faction, Quest quest = null)
         {
             List<Pawn> pawns = [];
 
@@ -76,8 +88,9 @@ namespace VFECore.Misc.HireableSystem
 
                     Ideo fixedIdeo = faction.ideos.GetRandomIdeoForNewPawn();
 
-                    Pawn pawn = PawnGenerator.GeneratePawn(new PawnGenerationRequest(kind, mustBeCapableOfViolence: true, faction: faction,
-                                                                                        forbidAnyTitle: true, fixedIdeo: fixedIdeo));
+                    Pawn pawn = quest  != null ?
+                        quest.GeneratePawn(new PawnGenerationRequest(kind, faction, mustBeCapableOfViolence: true, forceGenerateNewPawn: false, developmentalStages: DevelopmentalStage.Adult, forbidAnyTitle: true, allowPregnant: false, fixedIdeo: fixedIdeo), ensureNonNumericName:true) :
+                        PawnGenerator.GeneratePawn(new PawnGenerationRequest(kind, faction, mustBeCapableOfViolence: true, forceGenerateNewPawn: false, developmentalStages: DevelopmentalStage.Adult, forbidAnyTitle: true, allowPregnant: false, fixedIdeo: fixedIdeo));
 
                     Log.Message($"Generated pawn :{pawn.LabelCap}");
 

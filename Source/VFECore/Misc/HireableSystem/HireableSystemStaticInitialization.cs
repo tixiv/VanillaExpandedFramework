@@ -98,6 +98,8 @@ namespace VFECore.Misc.HireableSystem
 
         private readonly List<HireableFactionDef> factions;
 
+        private Dialog_Hire dialog_Hire_instance;
+
         public Hireable(string label, List<HireableFactionDef> list)
         {
             Key      = label;
@@ -112,7 +114,8 @@ namespace VFECore.Misc.HireableSystem
 
         public void TryOpenComms(Pawn negotiator)
         {
-            Find.WindowStack.Add(new Dialog_Hire(negotiator, this));
+            dialog_Hire_instance = new Dialog_Hire(negotiator, this);
+            Find.WindowStack.Add(dialog_Hire_instance);
         }
 
         public Faction GetFaction() => null;
