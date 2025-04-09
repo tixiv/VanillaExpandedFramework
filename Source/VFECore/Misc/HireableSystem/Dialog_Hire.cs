@@ -90,17 +90,19 @@ namespace VFECore.Misc.HireableSystem
             }
         }
 
-        private void TargetChosen(int tile, TransportPodsArrivalAction arrivalAction)
+        private void OnTargetChosen(string action, int tile, IntVec3 cell, WorldObject worldobject)
         {
-            Log.Message($"Chosen: {tile} {arrivalAction}");
+            Log.Message($"Chosen: {action} {worldobject}");
             
-            // We go to the colony again so it is clear we are still at the coms console
-            CameraJumper.TryHideWorld();
+        }
 
+        private void OnTargettingFinished()
+        {
             // Remove the pause window and show out dialog again. (The dialog of course also forces the game paused)
             Find.WindowStack.TryRemove(pauseWindow, false);
             Find.WindowStack.Add(this);
         }
+
 
 
         public void OnSelectTargetKeyPressed()
@@ -111,7 +113,7 @@ namespace VFECore.Misc.HireableSystem
             Find.WindowStack.Add(pauseWindow);
 
             TargetChoser targetChooser = new TargetChoser(targetMap);
-            targetChooser.StartChoosingDestination(TargetChosen);
+            targetChooser.StartChoosingDestination(OnTargetChosen, OnTargettingFinished);
         }
 
 

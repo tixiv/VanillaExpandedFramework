@@ -15,54 +15,124 @@ namespace VFECore.Misc.HireableSystem
 
     public class TargetChoser
     {
-        private Map map;
+        private Map originalMap;
         private int MaxLaunchDistance = 1000;
         private List<IThingHolder> fakePods = [];
 
-        private Action<int, TransportPodsArrivalAction> action;
+        private Action<string, int, IntVec3, WorldObject> action;
+        private Action finishedAction;
 
-        public TargetChoser(Map currentMap)
+        private bool alreadyFinished;
+
+        public static TargetChoser instanceDuringWorldTargeter;
+
+        public TargetChoser(Map originalMap)
         {
-            map = currentMap;
+            this.originalMap = originalMap;
             fakePods.Add(new FakePod());
+        }
+
+        private void targetChosen(string arrivalAction, int worldTile, IntVec3 cell = default, WorldObject worldObject = null)
+        {
+            action(arrivalAction, worldTile, cell, worldObject);
+
+            TargetingFinished();
+        }
+
+        private void TargetingFinished()
+        {
+            // Please no callbacks anymore
+            instanceDuringWorldTargeter = null;
+
+            if (!alreadyFinished)
+            {
+                alreadyFinished = true;
+
+                // We go to the colony again so it is clear that we are still at the coms console
+                CameraJumper.TryHideWorld();
+                finishedAction();
+            }
+        }
+
+        public void TargetingFinishedCallback()
+        {
+            Log.Message("WorldTargeting finished");
+
+            TargetingFinished();
         }
 
         private IEnumerable<FloatMenuOption> GetTransportPodsFloatMenuOptionsAt(int tile)
         {
-            bool anything = false;
-            if (TransportPodsArrivalAction_FormCaravan.CanFormCaravanAt(fakePods, tile) && !Find.WorldObjects.AnySettlementBaseAt(tile) && !Find.WorldObjects.AnySiteAt(tile))
+            if (!Find.World.Impassable(tile) && !Find.WorldObjects.AnySettlementBaseAt(tile) && !Find.WorldObjects.AnySiteAt(tile))
             {
-                anything = true;
                 yield return new FloatMenuOption("FormCaravanHere".Translate(), delegate
                 {
-                    action(tile, new TransportPodsArrivalAction_FormCaravan());
+                    targetChosen("FormCaravan", tile);
                 });
             }
 
-            List<WorldObject> worldObjects = Find.WorldObjects.AllWorldObjects;
-            for (int i = 0; i < worldObjects.Count; i++)
+            foreach (WorldObject wo in Find.WorldObjects.AllWorldObjects)
             {
-                if (worldObjects[i].Tile != tile)
-                {
+                if (wo.Tile != tile)
                     continue;
-                }
 
-                foreach (FloatMenuOption transportPodsFloatMenuOption in worldObjects[i].GetTransportPodsFloatMenuOptions(fakePods, new FakeCompLaunchable(action)))
+                if (wo is Settlement settlement && !settlement.HasMap && TransportPodsArrivalAction_AttackSettlement.CanAttack(fakePods, settlement))
                 {
-                    anything = true;
-                    yield return transportPodsFloatMenuOption;
+                    yield return new FloatMenuOption("AttackAndDropAtEdge".Translate(settlement.Label), delegate
+                    {
+                        targetChosen("AttackAndDropAtEdge", tile, worldObject: wo);
+                    });
+                    yield return new FloatMenuOption("AttackAndDropInCenter".Translate(settlement.Label), delegate
+                    {
+                        targetChosen("AttackAndDropInCenter", tile, worldObject: wo);
+                    });
                 }
-            }
-
-            if (!anything && !Find.World.Impassable(tile))
-            {
-                yield return new FloatMenuOption("TransportPodsContentsWillBeLost".Translate(), delegate
+                if (wo is Site site && TransportPodsArrivalAction_VisitSite.CanVisit(fakePods, site))
                 {
-                    action(tile, null);
-                });
+                    yield return new FloatMenuOption("DropAtEdge".Translate(site.Label), delegate
+                    {
+                        targetChosen("SiteDropAtEdge", tile, worldObject: wo);
+                    });
+                    yield return new FloatMenuOption("DropInCenter".Translate(site.Label), delegate
+                    {
+                        targetChosen("SiteDropInCenter", tile, worldObject: wo);
+                    });
+                }
+                if (wo is MapParent mapParent && mapParent.HasMap && TransportPodsArrivalAction_LandInSpecificCell.CanLandInSpecificCell(fakePods, mapParent))
+                {
+                    yield return new FloatMenuOption("LandInExistingMap".Translate(mapParent.Label), delegate ()
+                    {
+                        instanceDuringWorldTargeter = null; // we are map targeting now
+                        Current.Game.CurrentMap = mapParent.Map;
+                        CameraJumper.TryHideWorld();
+                        TargetingParameters targetParams = TargetingParameters.ForDropPodsDestination();
+                        void action(LocalTargetInfo x)
+                        {
+                            targetChosen("LandInExistingMap", tile, x.Cell, wo);
+                        }
+
+                        void actionWhenFinished()
+                        {
+                            if (Find.Maps.Contains(originalMap))
+                            {
+                                Current.Game.CurrentMap = originalMap;
+                            }
+                            TargetingFinished();
+                        }
+
+                        Find.Targeter.BeginTargeting(targetParams, action, null, actionWhenFinished, CompLaunchable.TargeterMouseAttachment, true);
+                    });
+                }
+                if (wo is Caravan caravan && TransportPodsArrivalAction_GiveToCaravan.CanGiveTo(fakePods, caravan))
+                {
+                    yield return new FloatMenuOption("GiveToCaravan".Translate(caravan.Label), delegate
+                    {
+                        targetChosen("GiveToCaravan", tile, worldObject: wo);
+                    });
+                }
             }
         }
-
+    
         public string TargetingLabelGetter(GlobalTargetInfo target, int tile)
         {
             if (!target.IsValid)
@@ -96,7 +166,7 @@ namespace VFECore.Misc.HireableSystem
             return "ClickToSeeAvailableOrders_Empty".Translate();
         }
 
-        private bool ChoseWorldTarget(GlobalTargetInfo target, int tile, int maxLaunchDistance, Action<int, TransportPodsArrivalAction> launchAction)
+        private bool ChoseWorldTarget(GlobalTargetInfo target)
         {
             if (!target.IsValid)
             {
@@ -104,8 +174,8 @@ namespace VFECore.Misc.HireableSystem
                 return false;
             }
 
-            int num = Find.WorldGrid.TraversalDistanceBetween(tile, target.Tile);
-            if (maxLaunchDistance > 0 && num > maxLaunchDistance)
+            int num = Find.WorldGrid.TraversalDistanceBetween(this.originalMap.Tile, target.Tile);
+            if (this.MaxLaunchDistance > 0 && num > this.MaxLaunchDistance)
             {
                 Messages.Message("TransportPodDestinationBeyondMaximumRange".Translate(), MessageTypeDefOf.RejectInput, historical: false);
                 return false;
@@ -117,11 +187,8 @@ namespace VFECore.Misc.HireableSystem
                 if (Find.World.Impassable(target.Tile))
                 {
                     Messages.Message("MessageTransportPodsDestinationIsInvalid".Translate(), MessageTypeDefOf.RejectInput, historical: false);
-                    return false;
                 }
-
-                launchAction(target.Tile, null);
-                return true;
+                return false;
             }
 
             if (source.Count() == 1)
@@ -139,52 +206,35 @@ namespace VFECore.Misc.HireableSystem
             return false;
         }
 
-        private bool ChoseWorldTarget(GlobalTargetInfo target)
+        public void StartChoosingDestination(Action<string, int, IntVec3, WorldObject> action, Action finishedAction)
         {
-            return ChoseWorldTarget(target, this.map.Tile, this.MaxLaunchDistance, action);
-        }
-
-        public void StartChoosingDestination(Action<int, TransportPodsArrivalAction> action)
-        {
-            int tile = this.map.Tile;
+            int originTile = this.originalMap.Tile;
             this.action = action;
+            this.finishedAction = finishedAction;
 
-            CameraJumper.TryJump(CameraJumper.GetWorldTarget(map.Parent), CameraJumper.MovementMode.Pan);
+            CameraJumper.TryJump(CameraJumper.GetWorldTarget(originalMap.Parent), CameraJumper.MovementMode.Pan);
             Find.WorldSelector.ClearSelection();
 
+            this.alreadyFinished = false;
+            instanceDuringWorldTargeter = this;
 
-            Find.WorldTargeter.BeginTargeting(new Func<GlobalTargetInfo, bool>(this.ChoseWorldTarget), true, CompLaunchable.TargeterMouseAttachment, true, delegate
+            Find.WorldTargeter.BeginTargeting(this.ChoseWorldTarget, canTargetTiles: true, mouseAttachment: CompLaunchable.TargeterMouseAttachment, onUpdate: delegate
             {
-                GenDraw.DrawWorldRadiusRing(tile, this.MaxLaunchDistance);
+                GenDraw.DrawWorldRadiusRing(originTile, this.MaxLaunchDistance);
 
-            }, (GlobalTargetInfo target) => TargetingLabelGetter(target, tile), null);
+            }, extraLabelGetter: (GlobalTargetInfo target) => TargetingLabelGetter(target, originTile));
         }
     }
 
-    public class FakeCompLaunchable : CompLaunchable
+    [HarmonyPatch(typeof(WorldTargeter), "StopTargeting")]
+    public class WorldTargeter_StopTargeting_Patch
     {
-        private ThingWithComps fakeThing = new ThingWithComps();
-        public Action<int, TransportPodsArrivalAction> action;
-        public FakeCompLaunchable(Action<int, TransportPodsArrivalAction> action)
+        public static void Postfix(WorldTargeter __instance)
         {
-            parent = fakeThing;
-            this.action = action;
-        }
-    }
-
-
-    [HarmonyPatch(typeof(CompLaunchable), "TryLaunch")]
-    public class CompLaunchable_TryLaunch_Patch
-    {
-        public static bool Prefix(CompLaunchable __instance, int destinationTile, TransportPodsArrivalAction arrivalAction)
-        {
-            if (__instance is FakeCompLaunchable fakeCompLaunchable)
+            if (TargetChoser.instanceDuringWorldTargeter != null)
             {
-                fakeCompLaunchable.action(destinationTile, arrivalAction);
-                return false;
+                TargetChoser.instanceDuringWorldTargeter.TargetingFinishedCallback();
             }
-
-            return true;
         }
     }
 
