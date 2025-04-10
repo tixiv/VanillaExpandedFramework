@@ -90,45 +90,40 @@ namespace VFECore.Misc.HireableSystem
             {
                 quest.AttackEnemyBase(settlement2, pawns, PawnsArrivalModeDefOf.CenterDrop);
             }
+            else if (orders.WorldObject is Site site && orders.Command == Orders.Commands.SiteDropAtEdge)
+            {
+                quest.VisitSite(site, pawns, PawnsArrivalModeDefOf.EdgeDrop);
+            }
+            else if (orders.WorldObject is Site site2 && orders.Command == Orders.Commands.SiteDropInCenter)
+            {
+                quest.VisitSite(site2, pawns, PawnsArrivalModeDefOf.CenterDrop);
+            }
             else if (orders.Command == Orders.Commands.FormCaravan)
             {
                 quest.FormCaravan(pawns, orders.WorldTile);
+                quest.Letter(LetterDefOf.PositiveEvent, text: "Your hired mercenaries formed a caravan at the assigned location and are awaiting further orders.", label: "new caravan", lookTargets: pawns.Where(p => !p.Dead));
+            }
+            else if (orders.WorldObject is Caravan caravan && orders.Command == Orders.Commands.GiveToCaravan)
+            {
+                quest.GiveToCaravan(pawns, caravan);
+                quest.Letter(LetterDefOf.PositiveEvent, text: "Your hired mercenaries have joined " + caravan.Label + ".", label: "mercenaries arrived", lookTargets: pawns.Where(p => !p.Dead));
+            }
+            else
+            {
+                Log.Error($"Bad orders {orders}");
             }
 
             quest.Signal(contractCompletedSignal, delegate
             {
-                quest.Letter(LetterDefOf.PositiveEvent, text: "[mercenariesLeavingLetterText]", label: "[mercenariesLeavingLetterLabel]", lookTargets: pawns.Where(p => !p.Dead));
+                quest.Letter(LetterDefOf.NeutralEvent, text: "[mercenariesLeavingLetterText]", label: "[mercenariesLeavingLetterLabel]", lookTargets: pawns.Where(p => !p.Dead));
 
                 quest.Leave(pawns, sendStandardLetter: false, leaveOnCleanup: false, wakeUp: false);
-
-                quest.Delay(500, delegate
-                {
-
-                    quest.DebugAction(delegate
-                    {
-                        Log.Message("Yeay! delayed execution!!");
-                        QuestUtil.LogPawnInfo(pawns[0], quest);
-                    });
-                    quest.Delay(500, delegate
-                    {
-
-                        quest.DebugAction((SignalArgs args) =>
-                        {
-                            Log.Message("Yeay! delayed execution 2!!");
-                            QuestUtil.LogPawnInfo(pawns[0], quest);
-                        });
-
-                        quest.End(QuestEndOutcome.Success, inSignal: null, sendStandardLetter: true);
-
-                    });
-
-                });
-
+                quest.End(QuestEndOutcome.Success, inSignal: null, sendStandardLetter: false);
             });
 
             quest.Signal(assaultColonySignal, delegate
             {
-                quest.Letter(LetterDefOf.ThreatBig, text: "They got angry and are assaulting the colony now", label: "Mutiny", lookTargets: pawns.Where(p => !p.Dead));
+                quest.Letter(LetterDefOf.ThreatBig, text: "The mercenaries got angry and are assaulting your colonists now", label: "Mutiny", lookTargets: pawns.Where(p => !p.Dead));
                 quest.End(QuestEndOutcome.Fail, inSignal: null);
             });
 

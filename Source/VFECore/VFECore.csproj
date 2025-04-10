@@ -480,10 +480,12 @@
     <Compile Include="Misc\HireableSystem\DebugStuff.cs" />
     <Compile Include="Misc\HireableSystem\HireableUtil.cs" />
     <Compile Include="Misc\HireableSystem\Orders.cs" />
+    <Compile Include="Misc\HireableSystem\QuestPartGiveToCaravan.cs" />
     <Compile Include="Misc\HireableSystem\QuestPart_AttackEnemyBase.cs" />
     <Compile Include="Misc\HireableSystem\QuestNode_Root_Hireables.cs" />
     <Compile Include="Misc\HireableSystem\QuestPart_FormCaravan.cs" />
     <Compile Include="Misc\HireableSystem\QuestPart_HireableContract.cs" />
+    <Compile Include="Misc\HireableSystem\QuestPart_VisitSite.cs" />
     <Compile Include="Misc\HireableSystem\QuestUtil.cs" />
     <Compile Include="Misc\HireableSystem\TargetChoser.cs" />
     <Compile Include="MovingBases\CaravanArrivalAction_AttackMovingBase.cs" />
