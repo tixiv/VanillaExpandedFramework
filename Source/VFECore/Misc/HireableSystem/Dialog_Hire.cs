@@ -33,6 +33,7 @@ namespace VFECore.Misc.HireableSystem
 
         TargetChoser targetChooser;
         private Window pauseWindow = new InvisiblePauseWindow();
+        private Orders orders;
 
         public Dialog_Hire(Thing negotiator, Hireable hireable)
         {
@@ -46,6 +47,7 @@ namespace VFECore.Misc.HireableSystem
                                     .Where(x => !x.Position.Fogged(x.Map) && (targetMap.areaManager.Home[x.Position] || x.IsInAnyStorage())).Sum(t => t.stackCount);
             riskMultiplier = Find.World.GetComponent<HiringContractTracker>().GetFactorForHireable(hireable);
             targetChooser = new TargetChoser(targetMap);
+            orders = Orders.LandInExistingMap(targetMap.Parent);
         }
 
         public override Vector2 InitialSize => new Vector2(750f, 650f);
@@ -55,6 +57,7 @@ namespace VFECore.Misc.HireableSystem
         private float CostDays => Mathf.Pow(daysAmount, 0.8f);
 
         private float CostFinal => CostBase * (riskMultiplier + 1f);
+
 
         private float CostPawns(ICollection<PawnKindDef> except = null) =>
             hireData.Select(kv => new Pair<PawnKindDef, int>(kv.Key, kv.Value.First)).Where(pair => pair.Second > 0 && (except == null || !except.Contains(pair.First)))
@@ -86,24 +89,9 @@ namespace VFECore.Misc.HireableSystem
                 foreach (KeyValuePair<PawnKindDef, Pair<int, string>> kvp in hireData.Where(kvp => kvp.Value.First > 0))
                     list.Add(new Pair<PawnKindDef, int>(kvp.Key, kvp.Value.First));
 
-                HireableUtil.SpawnHiredPawnsQuest(hireable, curFaction, in list, daysAmount, CostFinal);
+                HireableUtil.SpawnHiredPawnsQuest(hireable, curFaction, in list, daysAmount, CostFinal, orders);
             }
         }
-
-        private void OnTargetChosen(string action, int tile, IntVec3 cell, WorldObject worldobject)
-        {
-            Log.Message($"Chosen: {action} {worldobject}");
-            
-        }
-
-        private void OnTargettingFinished()
-        {
-            // Remove the pause window and show out dialog again. (The dialog of course also forces the game paused)
-            Find.WindowStack.TryRemove(pauseWindow, false);
-            Find.WindowStack.Add(this);
-        }
-
-
 
         public void OnSelectTargetKeyPressed()
         {
@@ -116,6 +104,18 @@ namespace VFECore.Misc.HireableSystem
             targetChooser.StartChoosingDestination(OnTargetChosen, OnTargettingFinished);
         }
 
+        private void OnTargetChosen(Orders orders)
+        {
+            Log.Message($"Chosen: {orders.Command} {orders.WorldObject}");
+            this.orders = orders;
+        }
+
+        private void OnTargettingFinished()
+        {
+            // Remove the pause window and show out dialog again. (The dialog of course also forces the game paused)
+            Find.WindowStack.TryRemove(pauseWindow, false);
+            Find.WindowStack.Add(this);
+        }
 
         public override void DoWindowContents(Rect inRect)
         {

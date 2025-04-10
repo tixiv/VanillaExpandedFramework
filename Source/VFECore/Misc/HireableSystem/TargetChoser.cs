@@ -19,7 +19,7 @@ namespace VFECore.Misc.HireableSystem
         private int MaxLaunchDistance = 1000;
         private List<IThingHolder> fakePods = [];
 
-        private Action<string, int, IntVec3, WorldObject> action;
+        private Action<Orders> action;
         private Action finishedAction;
 
         private bool alreadyFinished;
@@ -32,9 +32,9 @@ namespace VFECore.Misc.HireableSystem
             fakePods.Add(new FakePod());
         }
 
-        private void targetChosen(string arrivalAction, int worldTile, IntVec3 cell = default, WorldObject worldObject = null)
+        private void targetChosen(Orders orders)
         {
-            action(arrivalAction, worldTile, cell, worldObject);
+            action(orders);
 
             TargetingFinished();
         }
@@ -67,38 +67,38 @@ namespace VFECore.Misc.HireableSystem
             {
                 yield return new FloatMenuOption("FormCaravanHere".Translate(), delegate
                 {
-                    targetChosen("FormCaravan", tile);
+                    targetChosen(Orders.FormCaravan(tile));
                 });
             }
 
-            foreach (WorldObject wo in Find.WorldObjects.AllWorldObjects)
+            foreach (WorldObject worldObject in Find.WorldObjects.AllWorldObjects)
             {
-                if (wo.Tile != tile)
+                if (worldObject.Tile != tile)
                     continue;
 
-                if (wo is Settlement settlement && !settlement.HasMap && TransportPodsArrivalAction_AttackSettlement.CanAttack(fakePods, settlement))
+                if (worldObject is Settlement settlement && !settlement.HasMap && TransportPodsArrivalAction_AttackSettlement.CanAttack(fakePods, settlement))
                 {
                     yield return new FloatMenuOption("AttackAndDropAtEdge".Translate(settlement.Label), delegate
                     {
-                        targetChosen("AttackAndDropAtEdge", tile, worldObject: wo);
+                        targetChosen(Orders.WithWorldObject(Orders.Commands.AttackAndDropAtEdge, worldObject));
                     });
                     yield return new FloatMenuOption("AttackAndDropInCenter".Translate(settlement.Label), delegate
                     {
-                        targetChosen("AttackAndDropInCenter", tile, worldObject: wo);
+                        targetChosen(Orders.WithWorldObject(Orders.Commands.AttackAndDropInCenter, worldObject));
                     });
                 }
-                if (wo is Site site && TransportPodsArrivalAction_VisitSite.CanVisit(fakePods, site))
+                if (worldObject is Site site && TransportPodsArrivalAction_VisitSite.CanVisit(fakePods, site))
                 {
                     yield return new FloatMenuOption("DropAtEdge".Translate(site.Label), delegate
                     {
-                        targetChosen("SiteDropAtEdge", tile, worldObject: wo);
+                        targetChosen(Orders.WithWorldObject(Orders.Commands.SiteDropAtEdge, worldObject));
                     });
                     yield return new FloatMenuOption("DropInCenter".Translate(site.Label), delegate
                     {
-                        targetChosen("SiteDropInCenter", tile, worldObject: wo);
+                        targetChosen(Orders.WithWorldObject(Orders.Commands.SiteDropInCenter, worldObject));
                     });
                 }
-                if (wo is MapParent mapParent && mapParent.HasMap && TransportPodsArrivalAction_LandInSpecificCell.CanLandInSpecificCell(fakePods, mapParent))
+                if (worldObject is MapParent mapParent && mapParent.HasMap && TransportPodsArrivalAction_LandInSpecificCell.CanLandInSpecificCell(fakePods, mapParent))
                 {
                     yield return new FloatMenuOption("LandInExistingMap".Translate(mapParent.Label), delegate ()
                     {
@@ -108,7 +108,7 @@ namespace VFECore.Misc.HireableSystem
                         TargetingParameters targetParams = TargetingParameters.ForDropPodsDestination();
                         void action(LocalTargetInfo x)
                         {
-                            targetChosen("LandInExistingMap", tile, x.Cell, wo);
+                            targetChosen(Orders.LandInExistingMap(worldObject, x.Cell));
                         }
 
                         void actionWhenFinished()
@@ -123,11 +123,11 @@ namespace VFECore.Misc.HireableSystem
                         Find.Targeter.BeginTargeting(targetParams, action, null, actionWhenFinished, CompLaunchable.TargeterMouseAttachment, true);
                     });
                 }
-                if (wo is Caravan caravan && TransportPodsArrivalAction_GiveToCaravan.CanGiveTo(fakePods, caravan))
+                if (worldObject is Caravan caravan && TransportPodsArrivalAction_GiveToCaravan.CanGiveTo(fakePods, caravan))
                 {
                     yield return new FloatMenuOption("GiveToCaravan".Translate(caravan.Label), delegate
                     {
-                        targetChosen("GiveToCaravan", tile, worldObject: wo);
+                        targetChosen(Orders.WithWorldObject(Orders.Commands.GiveToCaravan, worldObject));
                     });
                 }
             }
@@ -206,7 +206,7 @@ namespace VFECore.Misc.HireableSystem
             return false;
         }
 
-        public void StartChoosingDestination(Action<string, int, IntVec3, WorldObject> action, Action finishedAction)
+        public void StartChoosingDestination(Action<Orders> action, Action finishedAction)
         {
             int originTile = this.originalMap.Tile;
             this.action = action;

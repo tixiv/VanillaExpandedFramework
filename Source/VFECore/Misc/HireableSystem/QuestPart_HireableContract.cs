@@ -229,7 +229,7 @@ namespace VFECore.Misc.HireableSystem
         }
     }
 
-    public static class QuestGen_Hireable
+    public static partial class QuestGen_Hireable
     {
         public static QuestPart_HireableContract HireableContract(this Quest quest, Hireable hireable, HireableFactionDef factionDef, Faction faction, Faction temporaryFaction, IEnumerable<Pawn> pawns, float price, int delayTicks, string inSignalEnable = null, string inSignalDisable = null)
         {

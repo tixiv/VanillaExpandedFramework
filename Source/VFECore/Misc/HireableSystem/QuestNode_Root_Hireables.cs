@@ -3,47 +3,14 @@ using System.Linq;
 using HarmonyLib;
 using LudeonTK;
 using RimWorld;
+using RimWorld.Planet;
 using RimWorld.QuestGen;
 using Verse;
+using Verse.Noise;
 
 namespace VFECore.Misc.HireableSystem
 {
     using HireData = List<Pair<PawnKindDef, int>>;
-
-    public static class DebugTools
-    {
-        [DebugAction("Quests", "List quests now", false, false, false, false, 0, false, actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        public static void foo()
-        {
-            foreach (var q in Find.QuestManager.QuestsListForReading)
-                Log.Message($"Quest list: name={q.name}, hidden={q.hidden}, hiddenInUi={q.hiddenInUI}");
-        }
-    }
-
-
-    [HarmonyPatch(typeof(FactionManager), "Remove")]
-    public static class FactionManager_Remove_Patch
-    {
-        // This method runs after the original Remove method (Postfix)
-        [HarmonyPostfix]
-        public static void Postfix(FactionManager __instance, Faction faction)
-        {
-            // Add custom code here that runs after the Remove method is called
-            Log.Message($"Faction {faction.Name} has been removed.");
-
-        }
-
-        // Optionally, you can also define a Prefix if you want to run code before the original method is called
-        /*
-        [HarmonyPrefix]
-        public static bool Prefix(FactionManager __instance, Faction faction)
-        {
-            Log.Message($"Removing faction: {faction.Name}");
-            return true; // Return true to allow the original method to run, or false to skip it.
-        }
-        */
-    }
-
 
     public class QuestNode_Root_Hireables : QuestNode
     {
@@ -56,14 +23,12 @@ namespace VFECore.Misc.HireableSystem
             Quest quest = QuestGen.quest;
             Slate slate = QuestGen.slate;
 
-            // Todo: find appropriate Map. this gets a random one
-            Map map = QuestGen_Get.GetMap(false, null);
-            slate.Set<Map>("map", map, false);
-
             var hireableFaction = slate.Get<HireableFactionDef>("hireableFaction");
             var hireable = slate.Get<Hireable>("hireable");
             var hireData = slate.Get<HireData>("hireData");
             float price = slate.Get<float>("price");
+            var orders = slate.Get<Orders>("orders");
+
             int questDurationTicks = 10000;
 
             Faction faction = getOrMakeFactionOfDef(in hireableFaction, out Faction temporaryFaction);
@@ -106,9 +71,29 @@ namespace VFECore.Misc.HireableSystem
                     pawn.playerSettings.hostilityResponse = HostilityResponseMode.Attack;
             }
 
-            
-
-            quest.DropPods(map.Parent, pawns, sendStandardLetter: new bool?(true), useTradeDropSpot: true, dropSpot: null);
+            if (orders.WorldObject is MapParent mapParent && orders.Command == Orders.Commands.LandInExistingMap)
+            {
+                if (orders.Cell.HasValue)
+                {
+                    quest.DropPods(mapParent, pawns, sendStandardLetter: new bool?(true), dropSpot: orders.Cell);
+                }
+                else
+                {
+                    quest.DropPods(mapParent, pawns, sendStandardLetter: new bool?(true), useTradeDropSpot: true);
+                }
+            }
+            else if (orders.WorldObject is Settlement settlement && orders.Command == Orders.Commands.AttackAndDropAtEdge)
+            {
+                quest.AttackEnemyBase(settlement, pawns, PawnsArrivalModeDefOf.EdgeDrop);
+            }
+            else if (orders.WorldObject is Settlement settlement2 && orders.Command == Orders.Commands.AttackAndDropInCenter)
+            {
+                quest.AttackEnemyBase(settlement2, pawns, PawnsArrivalModeDefOf.CenterDrop);
+            }
+            else if (orders.Command == Orders.Commands.FormCaravan)
+            {
+                quest.FormCaravan(pawns, orders.WorldTile);
+            }
 
             quest.Signal(contractCompletedSignal, delegate
             {
@@ -118,8 +103,8 @@ namespace VFECore.Misc.HireableSystem
 
                 quest.Delay(500, delegate
                 {
-                    
-                    quest.DebugAction( delegate
+
+                    quest.DebugAction(delegate
                     {
                         Log.Message("Yeay! delayed execution!!");
                         QuestUtil.LogPawnInfo(pawns[0], quest);

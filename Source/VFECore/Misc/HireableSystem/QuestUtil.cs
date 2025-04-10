@@ -58,5 +58,14 @@ namespace VFECore.Misc.HireableSystem
             return qp;
         }
 
+        public static IEnumerable<ActiveDropPodInfo> MakePods(IEnumerable<Pawn> pawns)
+        {
+            foreach (var pawn in pawns)
+            {
+                ActiveDropPodInfo activeDropPodInfo = new();
+                activeDropPodInfo.innerContainer.TryAdd(pawn);
+                yield return activeDropPodInfo;
+            }
+        }
     }
 }
