@@ -11,7 +11,7 @@ namespace VFECore
 {
     using UnityEngine;
 
-    public class HiringContractTracker : WorldComponent, ICommunicable
+    public class HiringContractTracker : WorldComponent
     {
         public Dictionary<Hireable, List<ExposablePair>>
             deadCount = new Dictionary<Hireable, List<ExposablePair>>(); //the pair being amount of dead people and at what tick it expires
@@ -25,98 +25,57 @@ namespace VFECore
             public float price;
         }
 
-        public static Quest getQuest()
-        {
-            var quests = Find.QuestManager.QuestsListForReading.Where(q => q.root.defName ==  "VFECore_Hireables" && q.State == QuestState.Ongoing);
-
-            if (quests.Any())
-            {
-                Log.Message($"Returning quest: {quests.First().name}");
-                return quests.First();
-            }
-
-            return null;
-        }
-
-        public static ContractInfo getContractInfo()
-        {
-            var quest = getQuest();
-
-            if (quest != null)
-                Log.Message("Found quest: " + quest.name);
-
-            if (quest == null)
-                return null;
-
-            foreach (var q in quest.PartsListForReading)
-            {
-                if (q != null)
-                    Log.Message($"QestPart {q.ToString()}");
-                else
-                    Log.Message("null questPart");
-            }
-
-            var questParts = quest.PartsListForReading.OfType<QuestPart_HireableContract>();
-
-            if (questParts != null)
-            {
-                Log.Message("questParts is not null.");
-                if (questParts.Any())
-                {
-                    Log.Message("Retruning contract info from quest");
-                    return questParts.First().contractInfo;
-                }
-            }
-            else
-                Log.Message("questParts is null.");
-
-            return null;
-        }
-
-
         public HiringContractTracker(World world) : base(world)
         {
         }
 
-        // public string GetCallLabel() => "VEF.ContractInfo".Translate((factionDef?.label ?? hireable.Key).CapitalizeFirst());
-
-        public string GetCallLabel() => "VEF.ContractInfo".Translate("Foobar");
-
-        public string GetInfoText() => "";
-
-        public void TryOpenComms(Pawn negotiator)
+        public static HiringContractTracker Get()
         {
-            Find.WindowStack.Add(new Dialog_ContractInfo(this));
+            return Find.World.GetComponent<HiringContractTracker>();
         }
 
-        public Faction GetFaction() => null;
+        public IEnumerable<ICommunicable> GetComTargets()
+        {
+            //return HireableSystemStaticInitialization.Hireables;
 
-        public FloatMenuOption CommFloatMenuOption(Building_CommsConsole console, Pawn negotiator) => FloatMenuUtility.DecoratePrioritizedTask(
-         new FloatMenuOption(GetCallLabel(), () => console.GiveUseCommsJob(negotiator, this), MenuOptionPriority.InitiateSocial), negotiator, console);
+            var ongoingContracts = GetOngoingContracts();
 
-        public static bool IsHired(Pawn pawn) {
-            var quest = getQuest();
-            if (quest != null)
+            foreach (var hireable in HireableSystemStaticInitialization.Hireables)
             {
-                foreach (QuestPart_ExtraFaction qpef in quest.PartsListForReading.OfType<QuestPart_ExtraFaction>())
+                if (GetOngoingContracts().Any(c => c.hireable == hireable))
                 {
-                    if (qpef.affectedPawns.Contains(pawn))
-                        return true;
+                    yield return new ComTarget_ViewContract(hireable);
+                }
+                else
+                {
+                    yield return hireable;
                 }
             }
-            return false;
         }
 
-        /*
-        public void SetNewContract(int days, List<Pawn> pawns, Hireable hireable, HireableFactionDef faction = null, float price = 0)
+        private static IEnumerable<Quest> getOngoingQuests() => Find.QuestManager.QuestsListForReading.Where(q => q.State == QuestState.Ongoing && q.root.defName == "VFECore_Hireables");
+
+        public static IEnumerable<ContractInfo> GetOngoingContracts()
         {
-            endTicks      = Find.TickManager.TicksAbs + days * GenDate.TicksPerDay;
-            this.pawns    = pawns;
-            this.hireable = hireable;
-            factionDef    = faction;
-            this.price    = price;
+            foreach (var q in getOngoingQuests())
+                foreach (QuestPart_HireableContract qp in q.PartsListForReading.OfType<QuestPart_HireableContract>())
+                    yield return qp.contractInfo;            
         }
-        */
+
+        public static bool IsHired(Pawn pawn) => GetOngoingContracts().Any(c => c.pawns.Contains(pawn));
+
+        private void AddLossesForFaction(Hireable hireable, int numLost)
+        {
+            if (!deadCount.ContainsKey(hireable))
+                deadCount.Add(hireable, new List<ExposablePair>());
+
+            deadCount[hireable].Add(new ExposablePair(numLost, Find.TickManager.TicksAbs + GenDate.TicksPerYear));
+        }
+
+        public void NotifyContractEnded(Hireable hireable, int numDead, int numKidnapped)
+        {
+            AddLossesForFaction(hireable, numDead + numKidnapped);
+        }
 
         public override void WorldComponentTick()
         {
@@ -128,7 +87,7 @@ namespace VFECore
             */
         }
 
-        public void endContract()
+        public void EndContract(Hireable hireable)
         {
         }
 

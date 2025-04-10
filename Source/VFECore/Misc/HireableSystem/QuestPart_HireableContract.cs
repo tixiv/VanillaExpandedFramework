@@ -73,7 +73,7 @@ namespace VFECore.Misc.HireableSystem
         }
 
         // This will send a signal for each pawn to QuestPart_ExtraFaction so the pawns get removed there.
-        private void SendSignalRemoveAllPawns()
+        private void SendSignalsToRemoveAllPawnsFromQuestPartExtraFaction()
         {
             foreach (Pawn p in contractInfo.pawns)
             {
@@ -98,7 +98,7 @@ namespace VFECore.Misc.HireableSystem
                     {
                         Log.Message($"To many dead, assault!!!");
 
-                        SendSignalRemoveAllPawns();
+                        SendSignalsToRemoveAllPawnsFromQuestPartExtraFaction();
 
                         AssaultColony(HistoryEventDefOf.MemberKilled);
 
@@ -159,27 +159,47 @@ namespace VFECore.Misc.HireableSystem
         }
 
 
-       
+        private List<Pawn> getKidnappedPawns()
+        {
+            List<Pawn> kidnappedPawnlist = new List<Pawn>();
 
-        // Overriding QuestPart_Delay::DelayFinished() because we use this to end the contrat with
-        // the hired faction. We now make sure that the faction doesn't attack the player, even if
-        // it is normally, hostile while leaving the map.
+            foreach (var f in Find.FactionManager.AllFactionsListForReading)
+                kidnappedPawnlist.AddRange(f.kidnapped.KidnappedPawnsListForReading);
+
+            return contractInfo.pawns.Where(p => kidnappedPawnlist.Contains(p)).ToList();
+        }
+
         protected override void DelayFinished()
         {
             base.DelayFinished();
+            SendSignalsToRemoveAllPawnsFromQuestPartExtraFaction();
 
-            foreach (Pawn p in contractInfo.pawns.Where(p => !p.Dead))
+            // Handle kidnapped pawns
+            var kidnappedPawns = getKidnappedPawns();
+
+            foreach (Pawn p in kidnappedPawns)
             {
-                QuestUtil.LogPawnInfo(p);
+                // Return kidnapped pawns to their original faction
+                p.SetFaction(this.faction);
             }
 
-            SendSignalRemoveAllPawns();
+            // Handle caravan pawns
+            var caravanPawns = contractInfo.pawns.Where(p => p.GetCaravan() != null);
 
-            foreach (Pawn p in contractInfo.pawns.Where(p => !p.Dead))
+            foreach (Pawn p in caravanPawns)
             {
-                QuestUtil.LogPawnInfo(p);
+                {
+                    // Remove from caravan
+                    p.GetCaravan().RemovePawn(p);
+
+                    // Return pawn to home faction
+                    p.SetFaction(this.faction);
+
+                    Find.WorldPawns.PassToWorld(p, PawnDiscardDecideMode.Decide);
+                }
             }
 
+            List<Pawn> pawnsToLeaveMap = contractInfo.pawns.Where(p => p != null && !p.Dead && !kidnappedPawns.Contains(p) && !caravanPawns.Contains(p)).ToList();
 
             Faction factionToLeaveMap = this.faction;
 
@@ -191,17 +211,9 @@ namespace VFECore.Misc.HireableSystem
                 factionToLeaveMap = temporaryFaction = HireableUtil.MakeFirendlyTemporaryFactionFromReference(factionToLeaveMap);
             }
 
-            foreach (Pawn p in contractInfo.pawns.Where(p => !p.Dead))
-            {
-                QuestUtil.LogPawnInfo(p);
-            }
-
-            foreach (Pawn p in contractInfo.pawns.Where(p => !p.Dead))
+            foreach (Pawn p in pawnsToLeaveMap)
             {
                 p.SetFaction(factionToLeaveMap);
-                Log.Message($"Set faction to {factionToLeaveMap.Name}, pawn has faction {p.Faction.Name} now.");
-
-                QuestUtil.LogPawnInfo(p);
             }
 
             // We need to make the faction temporary here, because when doing it earlier it gets removed
@@ -209,23 +221,12 @@ namespace VFECore.Misc.HireableSystem
             if (temporaryFaction != null)
             {
                 temporaryFaction.temporary = true; // temporary means it will get removed once the pawns have left the map
-
-                foreach (Pawn p in contractInfo.pawns.Where(p => !p.Dead))
-                {
-                    QuestUtil.LogPawnInfo(p);
-                }
-
-
                 temporaryFaction.hidden = false;   // unhide fake faction while pawns are leaving the map
-
-                foreach (Pawn p in contractInfo.pawns.Where(p => !p.Dead))
-                {
-                    QuestUtil.LogPawnInfo(p);
-                }
             }
 
+
+
             Find.SignalManager.SendSignal(new Signal(outSignal_Completed));
-            Log.Message("Contract finished");
         }
     }
 
@@ -248,10 +249,10 @@ namespace VFECore.Misc.HireableSystem
             qp.faction = faction;
             qp.temporaryFaction = temporaryFaction;
             qp.contractInfo.hireable = hireable;
-            qp.contractInfo.hireable = hireable;
             qp.contractInfo.factionDef = factionDef;
             qp.contractInfo.pawns = [.. pawns];
             qp.contractInfo.price = price;
+            qp.contractInfo.endTicks = Find.TickManager.TicksAbs + delayTicks;
 
             quest.AddPart(qp);
             return qp;

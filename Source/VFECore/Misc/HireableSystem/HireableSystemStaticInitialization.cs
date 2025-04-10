@@ -39,8 +39,15 @@ namespace VFECore.Misc.HireableSystem
             }
         }
 
-        public static IEnumerable<ICommunicable> GetCommTargets_Postfix(IEnumerable<ICommunicable> communicables) =>
-            HiringContractTracker.getContractInfo() != null ? communicables.Concat(Find.World.GetComponent<HiringContractTracker>()) : communicables.Concat(Hireables);
+        public static IEnumerable<ICommunicable> GetCommTargets_Postfix(IEnumerable<ICommunicable> communicables)
+        {
+            var contractTracker = HiringContractTracker.Get();
+            if (contractTracker != null) {
+                communicables.Concat(contractTracker.GetComTargets());
+            }
+
+            return communicables;
+        }
 
         public static void AddHireablesToLoadedObjectDirectory(LoadedObjectDirectory __instance)
         {
