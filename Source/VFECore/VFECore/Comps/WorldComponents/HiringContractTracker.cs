@@ -13,8 +13,19 @@ namespace VFECore
 
     public class HiringContractTracker : WorldComponent
     {
-        //public Dictionary<Hireable, List<ExposablePair>>
-        //    deadCount = new Dictionary<Hireable, List<ExposablePair>>(); //the pair being amount of dead people and at what tick it expires
+        private static HiringContractTracker cachedTracker = null;
+
+        public static HiringContractTracker Get()
+        {
+            if (cachedTracker == null || cachedTracker.world != Find.World)
+                cachedTracker = Find.World.GetComponent<HiringContractTracker>();
+
+            return cachedTracker;
+        }
+
+        public HiringContractTracker(World world) : base(world)
+        {
+        }
 
         // Making history events generic like this will help in the future to add new ones
         // without breaking upwards compatability to a new version of the mod
@@ -41,16 +52,6 @@ namespace VFECore
         }
 
         private List<HistoryEvent> HiringHistory = [];
-
-        public HiringContractTracker(World world) : base(world)
-        {
-            Log.Message("HiringContractTracker created");
-        }
-
-        public static HiringContractTracker Get()
-        {
-            return Find.World.GetComponent<HiringContractTracker>();
-        }
 
         public IEnumerable<ICommunicable> GetComTargets()
         {
@@ -236,6 +237,9 @@ namespace VFECore
 
         private void loadLegacyStuffsBarfoo()
         {
+            //public Dictionary<Hireable, List<ExposablePair>>
+            //    deadCount = new Dictionary<Hireable, List<ExposablePair>>(); //the pair being amount of dead people and at what tick it expires
+
             // Scribe_Values.Look(ref endTicks, nameof(endTicks));
 
             // Scribe_Collections.Look(ref this.pawns, nameof(this.pawns), LookMode.Reference);
