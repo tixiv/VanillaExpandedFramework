@@ -23,31 +23,35 @@ namespace VFECore.Misc.HireableSystem
     public class Dialog_Hire : Window
     {
         private readonly float availableSilver;
-        private readonly Hireable hireable;
         private readonly Dictionary<PawnKindDef, Pair<int, string>> hireData;
         private readonly float riskMultiplier;
-        private readonly Map targetMap;
+        private readonly Map currentMap;
+        private HireableFactionDef hireableFactionDef;
         private HireableFactionDef curFaction;
         private int daysAmount;
         private string daysAmountBuffer;
 
-        TargetChoser targetChooser;
+        private TargetChooser targetChooser;
         private Window pauseWindow = new InvisiblePauseWindow();
         private Orders orders;
 
-        public Dialog_Hire(Thing negotiator, Hireable hireable)
+        public Dialog_Hire(Thing negotiator, HireableFactionDef hireableFactionDef)
         {
-            targetMap = negotiator.Map;
-            this.hireable = hireable;
-            hireData = hireable.SelectMany(def => def.pawnKinds).ToDictionary(def => def, _ => new Pair<int, string>(0, ""));
+            currentMap = negotiator.Map;
+            this.hireableFactionDef = hireableFactionDef;
+            hireData = hireableFactionDef.pawnKinds.ToDictionary(def => def, _ => new Pair<int, string>(0, ""));
+
             closeOnCancel = true;
             forcePause = true;
             closeOnAccept = true;
-            availableSilver = targetMap.listerThings.ThingsOfDef(ThingDefOf.Silver)
-                                    .Where(x => !x.Position.Fogged(x.Map) && (targetMap.areaManager.Home[x.Position] || x.IsInAnyStorage())).Sum(t => t.stackCount);
-            riskMultiplier = Find.World.GetComponent<HiringContractTracker>().GetFactorForHireable(hireable);
-            targetChooser = new TargetChoser(targetMap);
-            orders = Orders.LandInExistingMap(targetMap.Parent);
+            soundAmbient = SoundDefOf.RadioComms_Ambience;
+
+            availableSilver = currentMap.listerThings.ThingsOfDef(ThingDefOf.Silver)
+                                    .Where(x => !x.Position.Fogged(x.Map) && (currentMap.areaManager.Home[x.Position] || x.IsInAnyStorage())).Sum(t => t.stackCount);
+            
+            riskMultiplier = Find.World.GetComponent<HiringContractTracker>().GetFactorForHireableFaction(hireableFactionDef);
+            targetChooser = new TargetChooser(currentMap);
+            orders = Orders.LandInExistingMap(currentMap.Parent);
         }
 
         public override Vector2 InitialSize => new Vector2(750f, 650f);
@@ -65,8 +69,8 @@ namespace VFECore.Misc.HireableSystem
 
         private void removeSilver(int amount)
         {
-            List<Thing> silverList = targetMap.listerThings.ThingsOfDef(ThingDefOf.Silver)
-                                              .Where(x => !x.Position.Fogged(x.Map) && (targetMap.areaManager.Home[x.Position] || x.IsInAnyStorage())).ToList();
+            List<Thing> silverList = currentMap.listerThings.ThingsOfDef(ThingDefOf.Silver)
+                                              .Where(x => !x.Position.Fogged(x.Map) && (currentMap.areaManager.Home[x.Position] || x.IsInAnyStorage())).ToList();
             while (amount > 0)
             {
                 Thing silver = silverList.First(t => t.stackCount > 0);
@@ -89,7 +93,7 @@ namespace VFECore.Misc.HireableSystem
                 foreach (KeyValuePair<PawnKindDef, Pair<int, string>> kvp in hireData.Where(kvp => kvp.Value.First > 0))
                     list.Add(new Pair<PawnKindDef, int>(kvp.Key, kvp.Value.First));
 
-                HireableUtil.SpawnHiredPawnsQuest(hireable, curFaction, in list, daysAmount, CostFinal, orders);
+                HireableUtil.SpawnHiredPawnsQuest(hireableFactionDef, in list, daysAmount, CostFinal, orders);
             }
         }
 
@@ -100,7 +104,7 @@ namespace VFECore.Misc.HireableSystem
             Find.WindowStack.TryRemove(this, false);
             Find.WindowStack.Add(pauseWindow);
 
-            TargetChoser targetChooser = new TargetChoser(targetMap);
+            TargetChooser targetChooser = new TargetChooser(currentMap);
             targetChooser.StartChoosingDestination(OnTargetChosen, OnTargettingFinished);
         }
 
@@ -124,12 +128,12 @@ namespace VFECore.Misc.HireableSystem
             var font = Text.Font;
             Text.Anchor = TextAnchor.MiddleLeft;
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(rect.x, rect.y, rect.width, 40f), hireable.GetCallLabel());
+            Widgets.Label(new Rect(rect.x, rect.y, rect.width, 40f), "VEF.Hire".Translate(hireableFactionDef.LabelCap));
             Text.Font = GameFont.Small;
             rect.yMin += 40f;
             Widgets.Label(new Rect(rect.x, rect.y, rect.width, 20f), "VEF.AvailableSilver".Translate(availableSilver.ToStringMoney()));
             rect.yMin += 30f;
-            foreach (var def in hireable) DoHireableFaction(ref rect, def);
+            DoHireableFaction(ref rect, hireableFactionDef);
             var breakDownRect = rect.TakeTopPart(100f);
             breakDownRect.xMin += 115f;
             Text.Anchor = TextAnchor.UpperLeft;
@@ -173,7 +177,7 @@ namespace VFECore.Misc.HireableSystem
             }
 
             Text.Font = GameFont.Tiny;
-            Widgets.Label(rect.ContractedBy(30f, 0f), "VEF.HiringDesc".Translate(hireable.Key).Colorize(ColoredText.SubtleGrayColor));
+            Widgets.Label(rect.ContractedBy(30f, 0f), "VEF.HiringDesc".Translate(hireableFactionDef.LabelCap).Colorize(ColoredText.SubtleGrayColor));
             Text.Anchor = anchor;
             Text.Font = font;
         }

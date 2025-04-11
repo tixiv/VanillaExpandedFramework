@@ -42,8 +42,9 @@ namespace VFECore.Misc.HireableSystem
         public static IEnumerable<ICommunicable> GetCommTargets_Postfix(IEnumerable<ICommunicable> communicables)
         {
             var contractTracker = HiringContractTracker.Get();
+
             if (contractTracker != null) {
-                communicables.Concat(contractTracker.GetComTargets());
+                return communicables.Concat(contractTracker.GetComTargets());
             }
 
             return communicables;
@@ -98,7 +99,7 @@ namespace VFECore.Misc.HireableSystem
         }
     }
 
-    public class Hireable : IGrouping<string, HireableFactionDef>, ICommunicable, ILoadReferenceable
+    public class Hireable : IGrouping<string, HireableFactionDef>, ILoadReferenceable
     {
         private static readonly AccessTools.FieldRef<CrossRefHandler, LoadedObjectDirectory> loadedObjectInfo =
             AccessTools.FieldRefAccess<CrossRefHandler, LoadedObjectDirectory>("loadedObjectDirectory");
@@ -114,21 +115,6 @@ namespace VFECore.Misc.HireableSystem
 
             loadedObjectInfo(Scribe.loader.crossRefs).RegisterLoaded(this);
         }
-
-        public string GetCallLabel() => "VEF.Hire".Translate(Key.CapitalizeFirst());
-
-        public string GetInfoText() => "VEF.HireDesc".Translate(Key.CapitalizeFirst());
-
-        public void TryOpenComms(Pawn negotiator)
-        {
-            dialog_Hire_instance = new Dialog_Hire(negotiator, this);
-            Find.WindowStack.Add(dialog_Hire_instance);
-        }
-
-        public Faction GetFaction() => null;
-
-        public FloatMenuOption CommFloatMenuOption(Building_CommsConsole console, Pawn negotiator) => FloatMenuUtility.DecoratePrioritizedTask(
-         new FloatMenuOption(GetCallLabel(), () => console.GiveUseCommsJob(negotiator, this), MenuOptionPriority.InitiateSocial), negotiator, console);
 
         public IEnumerator<HireableFactionDef> GetEnumerator() => factions.GetEnumerator();
 

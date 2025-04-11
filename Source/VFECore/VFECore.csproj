@@ -477,6 +477,7 @@
     <Compile Include="Genes\Harmony\FoodUtility_GetMeatSourceCategory.cs" />
     <Compile Include="Genes\Harmony\FoodUtility_GetMeatSourceCategoryFromCorpse.cs" />
     <Compile Include="Genes\Harmony\ThoughtWorker_HumanLeatherApparel_CurrentThoughtState.cs" />
+    <Compile Include="Misc\HireableSystem\ComTarget_Hire.cs" />
     <Compile Include="Misc\HireableSystem\DebugStuff.cs" />
     <Compile Include="Misc\HireableSystem\ComTarget_ViewContract.cs" />
     <Compile Include="Misc\HireableSystem\HireableUtil.cs" />
@@ -488,7 +489,7 @@
     <Compile Include="Misc\HireableSystem\QuestPart_HireableContract.cs" />
     <Compile Include="Misc\HireableSystem\QuestPart_VisitSite.cs" />
     <Compile Include="Misc\HireableSystem\QuestUtil.cs" />
-    <Compile Include="Misc\HireableSystem\TargetChoser.cs" />
+    <Compile Include="Misc\HireableSystem\TargetChooser.cs" />
     <Compile Include="MovingBases\CaravanArrivalAction_AttackMovingBase.cs" />
     <Compile Include="MovingBases\CaravanArrivalAction_MovingBase.cs" />
     <Compile Include="MovingBases\Caravan_PathFollower_ExposeData_Patch.cs" />

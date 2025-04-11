@@ -13,20 +13,38 @@ namespace VFECore
 
     public class HiringContractTracker : WorldComponent
     {
-        public Dictionary<Hireable, List<ExposablePair>>
-            deadCount = new Dictionary<Hireable, List<ExposablePair>>(); //the pair being amount of dead people and at what tick it expires
+        //public Dictionary<Hireable, List<ExposablePair>>
+        //    deadCount = new Dictionary<Hireable, List<ExposablePair>>(); //the pair being amount of dead people and at what tick it expires
 
-        // These variables will not be used anymore. They are only used to convert existing savegames to the new quest based hireables
-        public class legacyData {
-            public int endTicks;
-            public HireableFactionDef factionDef;
-            public Hireable hireable;
-            public List<Pawn> pawns = [];
-            public float price;
+        // Making history events generic like this will help in the future to add new ones
+        // without breaking upwards compatability to a new version of the mod
+        private class HistoryEvent : IExposable
+        {
+            public HireableFactionDef faction;
+            public int timestamp;
+
+            public virtual void ExposeData()
+            {
+                Scribe_Defs.Look(ref faction, nameof(faction));
+                Scribe_Values.Look(ref timestamp, nameof(timestamp));
+            }
         }
+
+        private class HistoryEvent_PeopleKilled : HistoryEvent
+        {
+            public int numKilled;
+            public override void ExposeData()
+            {
+                base.ExposeData();
+                Scribe_Values.Look(ref numKilled, nameof(numKilled));
+            }
+        }
+
+        private List<HistoryEvent> HiringHistory = [];
 
         public HiringContractTracker(World world) : base(world)
         {
+            Log.Message("HiringContractTracker created");
         }
 
         public static HiringContractTracker Get()
@@ -36,19 +54,25 @@ namespace VFECore
 
         public IEnumerable<ICommunicable> GetComTargets()
         {
+            Log.Message("GetComTargets");
             //return HireableSystemStaticInitialization.Hireables;
 
             var ongoingContracts = GetOngoingContracts();
 
             foreach (var hireable in HireableSystemStaticInitialization.Hireables)
             {
-                if (GetOngoingContracts().Any(c => c.hireable == hireable))
+                foreach (var hireableFactionDef in hireable)
                 {
-                    yield return new ComTarget_ViewContract(hireable);
-                }
-                else
-                {
-                    yield return hireable;
+                    if (GetOngoingContracts().Any(c => c.hireableFactionDef == hireableFactionDef))
+                    {
+                        Log.Message($"HireableFaction {hireableFactionDef} has contract");
+                        yield return new ComTarget_ViewContract(hireableFactionDef);
+                    }
+                    else
+                    {
+                        Log.Message($"Hireable {hireableFactionDef} can be hired");
+                        yield return new ComTarget_Hire(hireableFactionDef);
+                    }
                 }
             }
         }
@@ -64,17 +88,19 @@ namespace VFECore
 
         public static bool IsHired(Pawn pawn) => GetOngoingContracts().Any(c => c.pawns.Contains(pawn));
 
-        private void AddLossesForFaction(Hireable hireable, int numLost)
+        private void AddLossesForFaction(HireableFactionDef hireableFactionDef, int numLost)
         {
-            if (!deadCount.ContainsKey(hireable))
-                deadCount.Add(hireable, new List<ExposablePair>());
-
-            deadCount[hireable].Add(new ExposablePair(numLost, Find.TickManager.TicksAbs + GenDate.TicksPerYear));
+            HiringHistory.Add(new HistoryEvent_PeopleKilled
+            {
+                timestamp = Find.TickManager.TicksGame,
+                faction = hireableFactionDef,
+                numKilled = numLost
+            });
         }
 
-        public void NotifyContractEnded(Hireable hireable, int numDead, int numKidnapped)
+        public void NotifyContractEnded(HireableFactionDef hireableFactionDef, int numDead, int numKidnapped)
         {
-            AddLossesForFaction(hireable, numDead + numKidnapped);
+            AddLossesForFaction(hireableFactionDef, numDead + numKidnapped);
         }
 
         public override void WorldComponentTick()
@@ -87,7 +113,7 @@ namespace VFECore
             */
         }
 
-        public void EndContract(Hireable hireable)
+        public void EndContract(HireableFactionDef hireableFactionDef)
         {
         }
 
@@ -181,33 +207,42 @@ namespace VFECore
         }
         */
 
-        public float GetFactorForHireable(Hireable hireable)
+        public float GetFactorForHireableFaction(HireableFactionDef hireableFactionDef)
         {
-            if (!deadCount.ContainsKey(hireable))
-                deadCount.Add(hireable, new List<ExposablePair>());
+            int recentlyKilled = 0;
 
-            var pairs = deadCount[hireable];
-
-            float factor = 0;
-
-            for (var i = pairs.Count - 1; i >= 0; i--)
-                if (Find.TickManager.TicksAbs > (int)pairs[i].value)
-                    pairs.RemoveAt(i);
+            foreach (var historyEvent in HiringHistory.OfType<HistoryEvent_PeopleKilled>().Where(h => h.faction == hireableFactionDef))
+            {
+                if (Find.TickManager.TicksGame > historyEvent.timestamp + GenDate.TicksPerYear)
+                    HiringHistory.Remove(historyEvent);
                 else
-                    factor += 0.05f * (int)pairs[i].key;
+                    recentlyKilled += historyEvent.numKilled;
+            }
 
-            return factor;
+            Log.Message($"GetFactorForHireableFaction {hireableFactionDef.LabelCap}: recentlyKilled={recentlyKilled}");
+
+            return 0.05f * recentlyKilled;
         }
 
-        public override void ExposeData()
+        // These variables will not be used anymore. They are only used to convert existing savegames to the new quest based hireables
+        public class legacyData
         {
-            base.ExposeData();
+            public int endTicks;
+            public HireableFactionDef factionDef;
+            public Hireable hireable;
+            public List<Pawn> pawns = [];
+            public float price;
+        }
 
+        private void loadLegacyStuffsBarfoo()
+        {
             // Scribe_Values.Look(ref endTicks, nameof(endTicks));
 
             // Scribe_Collections.Look(ref this.pawns, nameof(this.pawns), LookMode.Reference);
 
             // Scribe_References.Look(ref hireable, nameof(hireable));
+
+            /*
             var deadCountKey = new List<Hireable>(deadCount.Keys);
             Scribe_Collections.Look(ref deadCountKey, nameof(deadCountKey), LookMode.Reference);
             var deadCountValue = new List<List<ExposablePair>>(deadCount.Values);
@@ -227,8 +262,19 @@ namespace VFECore
             for (var index = 0; index < deadCountKey.Count; index++)
                 deadCount.Add(deadCountKey[index], deadCountValue[index]);
 
+            */
+
             // Scribe_Values.Look(ref price, "price");
             // Scribe_Defs.Look(ref factionDef, "faction");
+        }
+
+
+
+        public override void ExposeData()
+        {
+            base.ExposeData();
+
+            Scribe_Collections.Look(ref HiringHistory, nameof(HiringHistory), LookMode.Reference);
         }
     }
 

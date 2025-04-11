@@ -24,7 +24,6 @@ namespace VFECore.Misc.HireableSystem
             Slate slate = QuestGen.slate;
 
             var hireableFaction = slate.Get<HireableFactionDef>("hireableFaction");
-            var hireable = slate.Get<Hireable>("hireable");
             var hireData = slate.Get<HireData>("hireData");
             float price = slate.Get<float>("price");
             var orders = slate.Get<Orders>("orders");
@@ -59,7 +58,7 @@ namespace VFECore.Misc.HireableSystem
             QuestPart_ExtraFaction extraFactionPart = quest.ExtraFaction(faction, pawns, ExtraFactionType.MiniFaction, false, [removePawnSignal]);
 
 
-            QuestPart_HireableContract hireableContractPart = quest.HireableContract(hireable, hireableFaction, faction, temporaryFaction, pawns, price, questDurationTicks);
+            QuestPart_HireableContract hireableContractPart = quest.HireableContract(hireableFaction, faction, temporaryFaction, pawns, price, questDurationTicks);
             hireableContractPart.outSignal_RemovePawn = removePawnSignal;
             hireableContractPart.outSignal_Completed = contractCompletedSignal;
             hireableContractPart.outSignal_AssaultColony = assaultColonySignal;

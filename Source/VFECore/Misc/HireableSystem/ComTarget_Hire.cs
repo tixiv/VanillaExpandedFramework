@@ -8,18 +8,28 @@ using Verse;
 
 namespace VFECore.Misc.HireableSystem
 {
-    public class ComTarget_ViewContract : ICommunicable
+    class ComTarget_Hire : ICommunicable
     {
-        private HireableFactionDef hireableFactionDef;
+        HireableFactionDef hireableFactionDef;
 
-        public ComTarget_ViewContract(HireableFactionDef hireableFactionDef)
+        public ComTarget_Hire(HireableFactionDef hireableFactionDef)
         {
             this.hireableFactionDef = hireableFactionDef;
         }
 
-        private ContractInfo TryGetContractInfo()
+        public string GetCallLabel() => "VEF.Hire".Translate(hireableFactionDef.LabelCap);
+
+        public string GetInfoText() => "VEF.HireDesc".Translate(hireableFactionDef.LabelCap);
+
+        public void TryOpenComms(Pawn negotiator)
         {
-            return HiringContractTracker.GetOngoingContracts().Where(c => c.hireableFactionDef == hireableFactionDef).FirstOrDefault();
+            Find.WindowStack.Add(new Dialog_Hire(negotiator, hireableFactionDef));
+        }
+
+        public Faction GetFaction()
+        {
+            Log.Message("GetFaction called");
+            return Faction.OfPirates;
         }
 
         public FloatMenuOption CommFloatMenuOption(Building_CommsConsole console, Pawn negotiator) => FloatMenuUtility.DecoratePrioritizedTask(
@@ -29,18 +39,5 @@ namespace VFECore.Misc.HireableSystem
                 iconColor: hireableFactionDef.referencedFaction.DefaultColor,
                 priority: MenuOptionPriority.InitiateSocial)
             , negotiator, console);
-
-        public string GetCallLabel() => "VEF.ContractInfo".Translate(hireableFactionDef.LabelCap);
-
-        public Faction GetFaction() => null;
-
-        public string GetInfoText() => "";
-
-        public void TryOpenComms(Pawn negotiator)
-        {
-            var contract = TryGetContractInfo();
-            if (contract != null)
-                Find.WindowStack.Add(new Dialog_ContractInfo(contract));
-        }
     }
 }

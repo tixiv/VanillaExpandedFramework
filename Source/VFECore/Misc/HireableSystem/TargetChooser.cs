@@ -13,7 +13,7 @@ using static System.Collections.Specialized.BitVector32;
 namespace VFECore.Misc.HireableSystem
 {
 
-    public class TargetChoser
+    public class TargetChooser
     {
         private Map originalMap;
         private int MaxLaunchDistance = 1000;
@@ -24,9 +24,9 @@ namespace VFECore.Misc.HireableSystem
 
         private bool alreadyFinished;
 
-        public static TargetChoser instanceDuringWorldTargeter;
+        public static TargetChooser instanceDuringWorldTargeter;
 
-        public TargetChoser(Map originalMap)
+        public TargetChooser(Map originalMap)
         {
             this.originalMap = originalMap;
             fakePods.Add(new FakePod());
@@ -231,9 +231,9 @@ namespace VFECore.Misc.HireableSystem
     {
         public static void Postfix(WorldTargeter __instance)
         {
-            if (TargetChoser.instanceDuringWorldTargeter != null)
+            if (TargetChooser.instanceDuringWorldTargeter != null)
             {
-                TargetChoser.instanceDuringWorldTargeter.TargetingFinishedCallback();
+                TargetChooser.instanceDuringWorldTargeter.TargetingFinishedCallback();
             }
         }
     }

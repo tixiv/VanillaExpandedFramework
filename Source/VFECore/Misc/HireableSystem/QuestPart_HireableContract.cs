@@ -19,8 +19,7 @@ namespace VFECore.Misc.HireableSystem
     {
         public List<Pawn> pawns = [];
         public int endTicks;
-        public HireableFactionDef factionDef;
-        public Hireable hireable;
+        public HireableFactionDef hireableFactionDef;
         public float price;
     };
 
@@ -41,8 +40,7 @@ namespace VFECore.Misc.HireableSystem
             base.ExposeData();
             Scribe_Collections.Look(ref contractInfo.pawns, "pawns", LookMode.Reference);
             Scribe_Values.Look(ref contractInfo.endTicks, "endTicks");
-            Scribe_Defs.Look(ref contractInfo.factionDef, "factionDef");
-            Scribe_References.Look(ref contractInfo.hireable, "hireable");
+            Scribe_Defs.Look(ref contractInfo.hireableFactionDef, "factionDef");
             Scribe_Values.Look(ref contractInfo.price, "price");
 
             Scribe_References.Look(ref faction, "faction");
@@ -169,6 +167,27 @@ namespace VFECore.Misc.HireableSystem
             return contractInfo.pawns.Where(p => kidnappedPawnlist.Contains(p)).ToList();
         }
 
+        private void RemoveCaravanPawn(Caravan caravan, Pawn pawn)
+        {
+            if (!caravan.PawnsListForReading.Any((Pawn x) => x != pawn && caravan.IsOwner(x)))
+            {
+                foreach (Thing item in CaravanInventoryUtility.AllInventoryItems(caravan))
+                    item.Notify_AbandonedAtTile(caravan.Tile);
+
+                caravan.RemovePawn(pawn);
+                
+                Find.LetterStack.ReceiveLetter(
+                    "LetterLabelCaravanLost".Translate(),
+                    "LetterCaravanLost".Translate(caravan.Name).CapitalizeFirst(),
+                    LetterDefOf.NegativeEvent, new GlobalTargetInfo(caravan.Tile));
+
+                caravan.pawns.Clear();
+                caravan.Destroy();
+                return;
+            }
+            caravan.RemovePawn(pawn);
+        }
+
         protected override void DelayFinished()
         {
             base.DelayFinished();
@@ -189,13 +208,12 @@ namespace VFECore.Misc.HireableSystem
             foreach (Pawn p in caravanPawns)
             {
                 {
+                    Caravan caravan = p.GetCaravan();
                     // Remove from caravan
-                    p.GetCaravan().RemovePawn(p);
+                    RemoveCaravanPawn(caravan, p);
 
                     // Return pawn to home faction
                     p.SetFaction(this.faction);
-
-                    Find.WorldPawns.PassToWorld(p, PawnDiscardDecideMode.Decide);
                 }
             }
 
@@ -232,7 +250,7 @@ namespace VFECore.Misc.HireableSystem
 
     public static partial class QuestGen_Hireable
     {
-        public static QuestPart_HireableContract HireableContract(this Quest quest, Hireable hireable, HireableFactionDef factionDef, Faction faction, Faction temporaryFaction, IEnumerable<Pawn> pawns, float price, int delayTicks, string inSignalEnable = null, string inSignalDisable = null)
+        public static QuestPart_HireableContract HireableContract(this Quest quest, HireableFactionDef hireableFactionDef, Faction faction, Faction temporaryFaction, IEnumerable<Pawn> pawns, float price, int delayTicks, string inSignalEnable = null, string inSignalDisable = null)
         {
             QuestPart_HireableContract qp = new QuestPart_HireableContract();
             qp.delayTicks = delayTicks;
@@ -248,8 +266,7 @@ namespace VFECore.Misc.HireableSystem
 
             qp.faction = faction;
             qp.temporaryFaction = temporaryFaction;
-            qp.contractInfo.hireable = hireable;
-            qp.contractInfo.factionDef = factionDef;
+            qp.contractInfo.hireableFactionDef = hireableFactionDef;
             qp.contractInfo.pawns = [.. pawns];
             qp.contractInfo.price = price;
             qp.contractInfo.endTicks = Find.TickManager.TicksAbs + delayTicks;

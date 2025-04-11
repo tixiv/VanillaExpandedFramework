@@ -16,6 +16,7 @@ namespace VFECore.Misc.HireableSystem
         {
             this.contractInfo = contractInfo;
             forcePause = true;
+            soundAmbient = SoundDefOf.RadioComms_Ambience;
         }
 
         public override    Vector2 InitialSize => new Vector2(750f, 650f);
@@ -30,12 +31,12 @@ namespace VFECore.Misc.HireableSystem
             titleRect.xMin += 60f;
             Text.Anchor    =  TextAnchor.MiddleLeft;
             Text.Font      =  GameFont.Medium;
-            Widgets.Label(titleRect, "VEF.ContractTitle".Translate((contractInfo.factionDef?.label ?? contractInfo.hireable.Key).CapitalizeFirst()));
-            if (contractInfo.factionDef != null)
+            Widgets.Label(titleRect, "VEF.ContractTitle".Translate((contractInfo.hireableFactionDef.label).CapitalizeFirst()));
+            if (contractInfo.hireableFactionDef != null)
             {
                 Widgets.DrawLightHighlight(iconRect);
-                GUI.color = contractInfo.factionDef.Color;
-                Widgets.DrawTextureFitted(iconRect, contractInfo.factionDef.Texture, 1f);
+                GUI.color = contractInfo.hireableFactionDef.Color;
+                Widgets.DrawTextureFitted(iconRect, contractInfo.hireableFactionDef.Texture, 1f);
                 GUI.color = Color.white;
             }
 
@@ -83,7 +84,7 @@ namespace VFECore.Misc.HireableSystem
                 Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation("VEF.NoRefund".Translate(), () =>
                                                                                                       {
                                                                                                           Close();
-                                                                                                          HiringContractTracker.Get().EndContract(contractInfo.hireable);
+                                                                                                          HiringContractTracker.Get().EndContract(contractInfo.hireableFactionDef);
                                                                                                       }, true, "VEF.CancelContract".Translate()));
             Text.Anchor = anchor;
             Text.Font   = font;
