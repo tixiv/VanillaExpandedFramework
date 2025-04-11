@@ -158,8 +158,6 @@ namespace VFECore.Misc.HireableSystem
 
         private readonly List<HireableFactionDef> factions;
 
-        private Dialog_Hire dialog_Hire_instance;
-
         public Hireable(string label, List<HireableFactionDef> list)
         {
             Key      = label;

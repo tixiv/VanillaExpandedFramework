@@ -8,11 +8,11 @@ using Verse;
 
 namespace VFECore.Misc.HireableSystem
 {
-    public class ComTarget_ViewContract : ICommunicable
+    public class CommTarget_ViewContract : ICommunicable, IExposable, ILoadReferenceable
     {
         private HireableFactionDef hireableFactionDef;
 
-        public ComTarget_ViewContract(HireableFactionDef hireableFactionDef)
+        public CommTarget_ViewContract(HireableFactionDef hireableFactionDef)
         {
             this.hireableFactionDef = hireableFactionDef;
         }
@@ -41,6 +41,12 @@ namespace VFECore.Misc.HireableSystem
             var contract = TryGetContractInfo();
             if (contract != null)
                 Find.WindowStack.Add(new Dialog_ContractInfo(contract));
+        }
+
+        public string GetUniqueLoadID() => $"VEF_{nameof(CommTarget_ViewContract)}_{hireableFactionDef.defName}";
+
+        public void ExposeData()
+        {
         }
     }
 }

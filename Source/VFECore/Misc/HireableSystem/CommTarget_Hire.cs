@@ -8,11 +8,15 @@ using Verse;
 
 namespace VFECore.Misc.HireableSystem
 {
-    class ComTarget_Hire : ICommunicable
+    class CommTarget_Hire : ICommunicable, IExposable, ILoadReferenceable
     {
         HireableFactionDef hireableFactionDef;
 
-        public ComTarget_Hire(HireableFactionDef hireableFactionDef)
+        public CommTarget_Hire()
+        {
+        }
+
+        public CommTarget_Hire(HireableFactionDef hireableFactionDef)
         {
             this.hireableFactionDef = hireableFactionDef;
         }
@@ -39,5 +43,19 @@ namespace VFECore.Misc.HireableSystem
                 iconColor: hireableFactionDef.referencedFaction.DefaultColor,
                 priority: MenuOptionPriority.InitiateSocial)
             , negotiator, console);
+
+        public string GetUniqueLoadID()
+        {
+            string foo = $"VEF_{nameof(CommTarget_Hire)}_{hireableFactionDef.defName}";
+
+            Log.Message(foo);
+
+            return foo;
+        }
+
+        public void ExposeData()
+        {
+            Scribe_Defs.Look(ref hireableFactionDef, nameof(hireableFactionDef));
+        }
     }
 }

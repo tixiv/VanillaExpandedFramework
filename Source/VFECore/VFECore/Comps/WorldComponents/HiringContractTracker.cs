@@ -23,6 +23,9 @@ namespace VFECore
             return cachedTracker;
         }
 
+        private Dictionary<HireableFactionDef, CommTarget_ViewContract> commTargetsViewContract = [];
+        private Dictionary<HireableFactionDef, CommTarget_Hire> commTargetsHire = [];
+
         public HiringContractTracker(World world) : base(world)
         {
         }
@@ -53,11 +56,18 @@ namespace VFECore
 
         private List<HistoryEvent> HiringHistory = [];
 
+        private ICommunicable GetCommTarget_ViewContract(HireableFactionDef hireableFactionDef)
+        {
+            return commTargetsViewContract[hireableFactionDef];
+        }
+
+        private ICommunicable GetCommTarget_Hire(HireableFactionDef hireableFactionDef)
+        {
+            return commTargetsHire[hireableFactionDef];
+        }
+
         public IEnumerable<ICommunicable> GetComTargets()
         {
-            Log.Message("GetComTargets");
-            //return HireableSystemStaticInitialization.Hireables;
-
             var ongoingContracts = GetOngoingContracts();
 
             foreach (var hireable in HireableSystemStaticInitialization.Hireables)
@@ -66,13 +76,11 @@ namespace VFECore
                 {
                     if (GetOngoingContracts().Any(c => c.hireableFactionDef == hireableFactionDef))
                     {
-                        Log.Message($"HireableFaction {hireableFactionDef} has contract");
-                        yield return new ComTarget_ViewContract(hireableFactionDef);
+                        yield return GetCommTarget_ViewContract(hireableFactionDef);
                     }
                     else
                     {
-                        Log.Message($"Hireable {hireableFactionDef} can be hired");
-                        yield return new ComTarget_Hire(hireableFactionDef);
+                        yield return GetCommTarget_Hire(hireableFactionDef);
                     }
                 }
             }
@@ -278,10 +286,41 @@ namespace VFECore
         {
             base.ExposeData();
 
-            Scribe_Collections.Look(ref HiringHistory, nameof(HiringHistory), LookMode.Reference);
+            Log.Message($"Scribe mode = {Scribe.mode}");
+
+            Scribe_Collections.Look(ref HiringHistory, nameof(HiringHistory), LookMode.Deep);
+            
+            Scribe_Collections.Look(ref commTargetsHire, nameof(commTargetsHire), LookMode.Def, LookMode.Deep);
+            //Scribe_Collections.Look(ref commTargetsViewContract, nameof(commTargetsViewContract), LookMode.Deep);
+
+
+            if (Scribe.mode == LoadSaveMode.PostLoadInit)
+            {
+                if (commTargetsHire == null)
+                    commTargetsHire = [];
+                if (commTargetsViewContract == null)
+                    commTargetsViewContract = [];
+
+
+                foreach (var hireable in HireableSystemStaticInitialization.Hireables)
+                {
+                    foreach (var hireableFactionDef in hireable)
+                    {
+                        if (!commTargetsHire.ContainsKey(hireableFactionDef))
+                            commTargetsHire.Add(hireableFactionDef, new CommTarget_Hire(hireableFactionDef));
+
+                        if (!commTargetsViewContract.ContainsKey(hireableFactionDef))
+                            commTargetsViewContract.Add(hireableFactionDef, new CommTarget_ViewContract(hireableFactionDef));
+                    }
+                }
+            }
+
+            Log.Message($"commTargetsViewContract.Count={commTargetsViewContract.Count}");
+
         }
     }
 
+    /*
     public class ExposablePair : IExposable
     {
         public object key;
@@ -300,4 +339,5 @@ namespace VFECore
             Scribe_Values.Look(ref value, nameof(value));
         }
     }
+    */
 }
