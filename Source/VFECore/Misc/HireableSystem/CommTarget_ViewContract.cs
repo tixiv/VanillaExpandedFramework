@@ -17,6 +17,10 @@ namespace VFECore.Misc.HireableSystem
             this.hireableFactionDef = hireableFactionDef;
         }
 
+        public CommTarget_ViewContract()
+        {
+        }
+
         private ContractInfo TryGetContractInfo()
         {
             return HiringContractTracker.GetOngoingContracts().Where(c => c.hireableFactionDef == hireableFactionDef).FirstOrDefault();
@@ -47,6 +51,7 @@ namespace VFECore.Misc.HireableSystem
 
         public void ExposeData()
         {
+            Scribe_Defs.Look(ref hireableFactionDef, nameof(hireableFactionDef));
         }
     }
 }

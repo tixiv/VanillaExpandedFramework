@@ -288,24 +288,43 @@ namespace VFECore
 
             Log.Message($"Scribe mode = {Scribe.mode}");
 
+            // Okay, I finally understood how scribe works. When using 'Scribe_Collections.Look' with a 'List'
+            // We get one 'LookMode' argument, that one is for the values in the 'List'. Lists don't have keys.
+            // Using 'LookMode.Deep' here means we are calling the 'ExposeData()' method on the values in the list
+            // to add them to the savegame. That is exactly what we want, because any future history event can just
+            // implement ExposeData() to save it's state.
             Scribe_Collections.Look(ref HiringHistory, nameof(HiringHistory), LookMode.Deep);
-            
-            Scribe_Collections.Look(ref commTargetsHire, nameof(commTargetsHire), LookMode.Def, LookMode.Deep);
-            //Scribe_Collections.Look(ref commTargetsViewContract, nameof(commTargetsViewContract), LookMode.Deep);
 
+            // Here we call ExposeData on a 'Dictionary'. A 'Dictionary' is a kind of a map, so this one has a 'Key'
+            // that maps to a 'Value'. For each 'Key' there is one 'Value'. In C++ this would be 'std::map'.
+            // Here 'Scribe_Collections' gives us two arguments for the 'LookMode'. The first one is for the 'Key',
+            // the second one is for the 'Value'. We give 'LookMode.Def' for the key, because it is a 'Def' from
+            // the XML files. We give 'LookMode.Deep' for the value because it implements 'IExposable'. Here the
+            // 'Value' also implements 'ILoadReferenceable'. That one will also only be tracked if we call it here
+            // with 'LookMode.Deep'.
+            // By the way: This stuff mainly needs to get saved to the savegame in case you order a colonist to use the
+            // comms console, and then you save the game before they walk to it. The job needs to have the ICommunicable
+            // that the colonist is going to use to be load referenceable so he can complete the job after reload.
+
+            Scribe_Collections.Look(ref commTargetsHire,         nameof(commTargetsHire),         LookMode.Def, LookMode.Deep);
+            Scribe_Collections.Look(ref commTargetsViewContract, nameof(commTargetsViewContract), LookMode.Def, LookMode.Deep);
 
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
+                // Here we make sure that if we load a savegame that doesn't have this stuff yet (mod just got installed)
+                // That we add them if they were not loaded from the savegame.
+
                 if (commTargetsHire == null)
                     commTargetsHire = [];
                 if (commTargetsViewContract == null)
                     commTargetsViewContract = [];
 
-
                 foreach (var hireable in HireableSystemStaticInitialization.Hireables)
                 {
                     foreach (var hireableFactionDef in hireable)
                     {
+                        // If any new hireable faction was added we add their commtargets here.
+
                         if (!commTargetsHire.ContainsKey(hireableFactionDef))
                             commTargetsHire.Add(hireableFactionDef, new CommTarget_Hire(hireableFactionDef));
 
@@ -314,9 +333,6 @@ namespace VFECore
                     }
                 }
             }
-
-            Log.Message($"commTargetsViewContract.Count={commTargetsViewContract.Count}");
-
         }
     }
 
