@@ -23,27 +23,26 @@ namespace VFECore.Misc.HireableSystem
             if (Hireables.Any())
             {
                 VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(Building_CommsConsole), nameof(Building_CommsConsole.GetCommTargets)),
-                                              postfix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(GetCommTargets_Postfix)));
+                                              postfix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(GetCommTargets_Postfix)));                
                 VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(EquipmentUtility), nameof(EquipmentUtility.QuestLodgerCanUnequip)),
                                               postfix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(QuestLodgerCanUnequip_Postfix)));
                 VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(CaravanFormingUtility), nameof(CaravanFormingUtility.AllSendablePawns)),
                                               transpiler: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(Patch_Quest_IsLodger_Transpiler)));
-                VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(CompAbilityEffect_Farskip), nameof(CompAbilityEffect_Farskip.ConfirmationDialog), [typeof(GlobalTargetInfo), typeof(Action)]),
-                                              prefix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(Farskip_ConfirmationDialog_Prefix)));
-
-
                 //VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(Pawn), nameof(Pawn.CheckAcceptArrest)),
                 //                              postfix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(CheckAcceptArrestPostfix)));
                 //VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(BillUtility), nameof(BillUtility.IsSurgeryViolationOnExtraFactionMember)),
                 //                              postfix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(IsSurgeryViolation_Postfix)));
+                VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(CompAbilityEffect_Farskip), nameof(CompAbilityEffect_Farskip.ConfirmationDialog), [typeof(GlobalTargetInfo), typeof(Action)]),
+                                              prefix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(Farskip_ConfirmationDialog_Prefix)));
+                VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(WorldTargeter), nameof(WorldTargeter.StopTargeting)),
+                                              postfix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(WorldTargeter_StopTargeting_Postfix)));
 
-
-                var subtype = typeof(CompAbilityEffect_Farskip).GetNestedTypes(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static).FirstOrDefault(t => t.Name.Contains("<PawnsToSkip>"));
-                if (subtype != null)
-                    VFECore.harmonyInstance.Patch(AccessTools.Method(subtype, "MoveNext"),
-                                              transpiler: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(Patch_Quest_IsLodger_Transpiler)));
-                else
-                    Log.Warning("Couldn't apply the patch that allows hireables to be farskipped");
+                var subtype = typeof(CompAbilityEffect_Farskip).GetNestedTypes(BindingFlags.NonPublic).FirstOrDefault(t => t.Name.Contains("<PawnsToSkip>"));
+                        if (subtype != null)
+                            VFECore.harmonyInstance.Patch(AccessTools.Method(subtype, "MoveNext"),
+                                                      transpiler: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(Patch_Quest_IsLodger_Transpiler)));
+                        else
+                            Log.Warning("Couldn't apply the patch that allows hireables to be farskipped");
 
             }
         }
@@ -58,13 +57,6 @@ namespace VFECore.Misc.HireableSystem
             }
 
             return communicables;
-        }
-
-        // Make our hireables lodgers.
-        // Not needed anymore since hireables are "real" quest lodgers now through QuestPart_ExtraFaction
-        public static void IsQuestLodger_Postfix(Pawn p, ref bool __result)
-        {
-            __result = __result || HiringContractTracker.IsHired(p);
         }
 
         // We lock the weapons on our hireables.
@@ -103,6 +95,7 @@ namespace VFECore.Misc.HireableSystem
         public static bool HireablesAreNotLodgersHelper(Pawn pawn, bool questLodger) =>
             questLodger && !HiringContractTracker.IsHired(pawn);
 
+        // Don't show confirmation dialog that says that the related quest will fail if you farskip hireables that are in a caravan
         public static bool Farskip_ConfirmationDialog_Prefix(ref Window __result, CompAbilityEffect_Farskip __instance, GlobalTargetInfo target, Action confirmAction)
         {
             // Need to call this private method the hard way:
@@ -127,6 +120,12 @@ namespace VFECore.Misc.HireableSystem
             // Doesn't hurt to run the original check anyway. This is probably more compatible in case
             // more conditions get added to it in a future Rimworld version
             return true;
+        }
+
+        // Sadly I found no cleaner way to get a signal from WorldTargeter when targeting is canceled
+        public static void WorldTargeter_StopTargeting_Postfix(WorldTargeter __instance)
+        {
+            TargetChooser.TargetingFinishedCallback();
         }
 
         public static void CheckAcceptArrestPostfix(Pawn __instance, ref bool __result)

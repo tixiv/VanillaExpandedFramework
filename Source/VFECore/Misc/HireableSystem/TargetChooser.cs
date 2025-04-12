@@ -24,7 +24,7 @@ namespace VFECore.Misc.HireableSystem
 
         private bool alreadyFinished;
 
-        public static TargetChooser instanceDuringWorldTargeter;
+        private static TargetChooser instanceDuringWorldTargeter;
 
         public TargetChooser(Map originalMap)
         {
@@ -54,11 +54,10 @@ namespace VFECore.Misc.HireableSystem
             }
         }
 
-        public void TargetingFinishedCallback()
+        public static void TargetingFinishedCallback()
         {
-            Log.Message("WorldTargeting finished");
-
-            TargetingFinished();
+            if (instanceDuringWorldTargeter != null)
+                instanceDuringWorldTargeter.TargetingFinished();
         }
 
         private IEnumerable<FloatMenuOption> GetTransportPodsFloatMenuOptionsAt(int tile)
@@ -226,18 +225,6 @@ namespace VFECore.Misc.HireableSystem
         }
     }
 
-    [HarmonyPatch(typeof(WorldTargeter), "StopTargeting")]
-    public class WorldTargeter_StopTargeting_Patch
-    {
-        public static void Postfix(WorldTargeter __instance)
-        {
-            if (TargetChooser.instanceDuringWorldTargeter != null)
-            {
-                TargetChooser.instanceDuringWorldTargeter.TargetingFinishedCallback();
-            }
-        }
-    }
-
     public class FakePod : IThingHolder
     {
         ThingOwner innerContainer;
@@ -247,16 +234,12 @@ namespace VFECore.Misc.HireableSystem
             innerContainer = new ThingOwner<Thing>(this);
 
             // Fake a colonist inside the pod so we get the Caravan / Attck options
-
             innerContainer.TryAdd(PawnGenerator.GeneratePawn(new PawnGenerationRequest(PawnKindDefOf.Colonist, Faction.OfPlayer, mustBeCapableOfViolence: true)));
         }
 
         public IThingHolder ParentHolder => null;
 
-        public ThingOwner GetDirectlyHeldThings()
-        {
-            return this.innerContainer;
-        }
+        public ThingOwner GetDirectlyHeldThings() => innerContainer;
 
         public void GetChildHolders(List<IThingHolder> outChildren) { }
     }
