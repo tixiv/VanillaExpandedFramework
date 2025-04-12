@@ -23,6 +23,13 @@ namespace VFECore.Misc.HireableSystem
             TransportPodsArrivalAction_FormCaravan arivalAction = new TransportPodsArrivalAction_FormCaravan();
             arivalAction.Arrived(QuestUtil.MakePods(pawns).ToList(), tile);
         }
+
+        public override void ExposeData()
+        {
+            base.ExposeData();
+            Scribe_Values.Look(ref tile, "tile");
+            Scribe_Collections.Look(ref pawns, "pawns", LookMode.Reference);
+        }
     }
 
     public static partial class QuestGen_Hireable

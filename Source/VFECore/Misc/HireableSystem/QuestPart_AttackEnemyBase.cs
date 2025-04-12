@@ -23,6 +23,13 @@ namespace VFECore.Misc.HireableSystem
             TransportPodsArrivalAction_AttackSettlement arrivalAction = new TransportPodsArrivalAction_AttackSettlement(enemyBase, arrivalMode);
             arrivalAction.Arrived(QuestUtil.MakePods(pawns).ToList(), enemyBase.Tile);
         }
+        public override void ExposeData()
+        {
+            base.ExposeData();
+            Scribe_Collections.Look(ref pawns, "pawns", LookMode.Reference);
+            Scribe_References.Look(ref enemyBase, "enemyBase");
+            Scribe_Defs.Look(ref arrivalMode, "arrivalMode");
+        }
     }
 
     public static partial class QuestGen_Hireable

@@ -7,13 +7,15 @@ using RimWorld.Planet;
 using RimWorld.QuestGen;
 using RimWorld;
 using Verse;
+using static RimWorld.Reward_Pawn;
+using System.Security.Policy;
 
 namespace VFECore.Misc.HireableSystem
 {
     public class QuestPartGiveToCaravan : QuestPartActivable
     {
-        public Caravan caravan;
         public List<Pawn> pawns;
+        public Caravan caravan;
 
         protected override void Enable(SignalArgs receivedArgs)
         {
@@ -22,6 +24,14 @@ namespace VFECore.Misc.HireableSystem
             foreach (Pawn pawn in pawns)
                 caravan.AddPawnOrItem(pawn, addCarriedPawnToWorldPawnsIfAny: true);
         }
+
+        public override void ExposeData()
+        {
+            base.ExposeData();
+            Scribe_Collections.Look(ref pawns, "pawns", LookMode.Reference);
+            Scribe_References.Look(ref caravan, "caravan");
+        }
+
     }
 
     public static partial class QuestGen_Hireable

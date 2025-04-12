@@ -7,6 +7,7 @@ using RimWorld.Planet;
 using RimWorld.QuestGen;
 using RimWorld;
 using Verse;
+using UnityEngine.Tilemaps;
 
 namespace VFECore.Misc.HireableSystem
 {
@@ -22,6 +23,14 @@ namespace VFECore.Misc.HireableSystem
 
             TransportPodsArrivalAction_VisitSite arrivalAction = new TransportPodsArrivalAction_VisitSite(site, arrivalMode);
             arrivalAction.Arrived(QuestUtil.MakePods(pawns).ToList(), site.Tile);
+        }
+
+        public override void ExposeData()
+        {
+            base.ExposeData();
+            Scribe_Collections.Look(ref pawns, "pawns", LookMode.Reference);
+            Scribe_References.Look(ref site, "site");
+            Scribe_Defs.Look(ref arrivalMode, "arrivalMode");
         }
     }
 
