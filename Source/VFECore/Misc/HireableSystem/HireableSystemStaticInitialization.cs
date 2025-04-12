@@ -23,8 +23,6 @@ namespace VFECore.Misc.HireableSystem
             {
                 VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(Building_CommsConsole), nameof(Building_CommsConsole.GetCommTargets)),
                                               postfix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(GetCommTargets_Postfix)));
-                VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(LoadedObjectDirectory), "Clear"),
-                                              postfix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(AddHireablesToLoadedObjectDirectory)));
                 VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(EquipmentUtility), nameof(EquipmentUtility.QuestLodgerCanUnequip)),
                                               postfix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(QuestLodgerCanUnequip_Postfix)));
                 VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(CaravanFormingUtility), nameof(CaravanFormingUtility.AllSendablePawns)),
@@ -59,12 +57,6 @@ namespace VFECore.Misc.HireableSystem
             }
 
             return communicables;
-        }
-
-        public static void AddHireablesToLoadedObjectDirectory(LoadedObjectDirectory __instance)
-        {
-            foreach (var hireable in Hireables)
-                __instance.RegisterLoaded(hireable);
         }
 
         // Make our hireables lodgers.
@@ -151,7 +143,7 @@ namespace VFECore.Misc.HireableSystem
         }
     }
 
-    public class Hireable : IGrouping<string, HireableFactionDef>, ILoadReferenceable
+    public class Hireable : IGrouping<string, HireableFactionDef>
     {
         private static readonly AccessTools.FieldRef<CrossRefHandler, LoadedObjectDirectory> loadedObjectInfo =
             AccessTools.FieldRefAccess<CrossRefHandler, LoadedObjectDirectory>("loadedObjectDirectory");
@@ -162,8 +154,6 @@ namespace VFECore.Misc.HireableSystem
         {
             Key      = label;
             factions = list;
-
-            loadedObjectInfo(Scribe.loader.crossRefs).RegisterLoaded(this);
         }
 
         public IEnumerator<HireableFactionDef> GetEnumerator() => factions.GetEnumerator();
@@ -171,6 +161,5 @@ namespace VFECore.Misc.HireableSystem
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
         public string Key               { get; }
-        public string GetUniqueLoadID() => $"{nameof(Hireable)}_{Key}";
     }
 }
