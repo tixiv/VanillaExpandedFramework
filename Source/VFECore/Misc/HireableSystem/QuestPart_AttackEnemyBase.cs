@@ -22,7 +22,10 @@ namespace VFECore.Misc.HireableSystem
 
             TransportPodsArrivalAction_AttackSettlement arrivalAction = new TransportPodsArrivalAction_AttackSettlement(enemyBase, arrivalMode);
             arrivalAction.Arrived(QuestUtil.MakePods(pawns).ToList(), enemyBase.Tile);
+
+            Complete();
         }
+
         public override void ExposeData()
         {
             base.ExposeData();

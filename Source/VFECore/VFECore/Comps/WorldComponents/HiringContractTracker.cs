@@ -70,18 +70,15 @@ namespace VFECore
         {
             var ongoingContracts = GetOngoingContracts();
 
-            foreach (var hireable in HireableSystemStaticInitialization.Hireables)
+            foreach (var hireableFactionDef in HireableSystemStaticInitialization.Hireables)
             {
-                foreach (var hireableFactionDef in hireable)
+                if (GetOngoingContracts().Any(c => c.hireableFactionDef == hireableFactionDef))
                 {
-                    if (GetOngoingContracts().Any(c => c.hireableFactionDef == hireableFactionDef))
-                    {
-                        yield return GetCommTarget_ViewContract(hireableFactionDef);
-                    }
-                    else
-                    {
-                        yield return GetCommTarget_Hire(hireableFactionDef);
-                    }
+                    yield return GetCommTarget_ViewContract(hireableFactionDef);
+                }
+                else
+                {
+                    yield return GetCommTarget_Hire(hireableFactionDef);
                 }
             }
         }
@@ -238,7 +235,6 @@ namespace VFECore
         {
             public int endTicks;
             public HireableFactionDef factionDef;
-            public Hireable hireable;
             public List<Pawn> pawns = [];
             public float price;
         }
@@ -293,6 +289,7 @@ namespace VFECore
             // Using 'LookMode.Deep' here means we are calling the 'ExposeData()' method on the values in the list
             // to add them to the savegame. That is exactly what we want, because any future history event can just
             // implement ExposeData() to save it's state.
+
             Scribe_Collections.Look(ref HiringHistory, nameof(HiringHistory), LookMode.Deep);
 
             // Here we call ExposeData on a 'Dictionary'. A 'Dictionary' is a kind of a map, so this one has a 'Key'
@@ -319,18 +316,15 @@ namespace VFECore
                 if (commTargetsViewContract == null)
                     commTargetsViewContract = [];
 
-                foreach (var hireable in HireableSystemStaticInitialization.Hireables)
+                foreach (var hireableFactionDef in HireableSystemStaticInitialization.Hireables)
                 {
-                    foreach (var hireableFactionDef in hireable)
-                    {
-                        // If any new hireable faction was added we add their commtargets here.
+                    // If any new hireable faction was added we add their commTargets here.
 
-                        if (!commTargetsHire.ContainsKey(hireableFactionDef))
-                            commTargetsHire.Add(hireableFactionDef, new CommTarget_Hire(hireableFactionDef));
+                    if (!commTargetsHire.ContainsKey(hireableFactionDef))
+                        commTargetsHire.Add(hireableFactionDef, new CommTarget_Hire(hireableFactionDef));
 
-                        if (!commTargetsViewContract.ContainsKey(hireableFactionDef))
-                            commTargetsViewContract.Add(hireableFactionDef, new CommTarget_ViewContract(hireableFactionDef));
-                    }
+                    if (!commTargetsViewContract.ContainsKey(hireableFactionDef))
+                        commTargetsViewContract.Add(hireableFactionDef, new CommTarget_ViewContract(hireableFactionDef));
                 }
             }
         }

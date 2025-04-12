@@ -22,6 +22,8 @@ namespace VFECore.Misc.HireableSystem
 
             TransportPodsArrivalAction_FormCaravan arivalAction = new TransportPodsArrivalAction_FormCaravan();
             arivalAction.Arrived(QuestUtil.MakePods(pawns).ToList(), tile);
+
+            Complete();
         }
 
         public override void ExposeData()

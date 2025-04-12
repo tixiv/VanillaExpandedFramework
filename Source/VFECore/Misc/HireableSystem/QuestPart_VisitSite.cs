@@ -23,6 +23,8 @@ namespace VFECore.Misc.HireableSystem
 
             TransportPodsArrivalAction_VisitSite arrivalAction = new TransportPodsArrivalAction_VisitSite(site, arrivalMode);
             arrivalAction.Arrived(QuestUtil.MakePods(pawns).ToList(), site.Tile);
+
+            Complete();
         }
 
         public override void ExposeData()

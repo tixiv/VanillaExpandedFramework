@@ -23,6 +23,8 @@ namespace VFECore.Misc.HireableSystem
 
             foreach (Pawn pawn in pawns)
                 caravan.AddPawnOrItem(pawn, addCarriedPawnToWorldPawnsIfAny: true);
+
+            Complete();
         }
 
         public override void ExposeData()

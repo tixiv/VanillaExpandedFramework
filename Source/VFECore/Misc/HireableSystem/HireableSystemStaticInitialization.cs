@@ -14,11 +14,12 @@ namespace VFECore.Misc.HireableSystem
     [StaticConstructorOnStartup]
     public static class HireableSystemStaticInitialization
     {
-        public static List<Hireable> Hireables;
+        public static List<HireableFactionDef> Hireables;
 
         static HireableSystemStaticInitialization()
         {
-            Hireables = DefDatabase<HireableFactionDef>.AllDefs.GroupBy(def => def.commTag).Select(group => new Hireable(group.Key, group.ToList())).ToList();
+            Hireables = DefDatabase<HireableFactionDef>.AllDefs.ToList();
+
             if (Hireables.Any())
             {
                 VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(Building_CommsConsole), nameof(Building_CommsConsole.GetCommTargets)),
@@ -141,25 +142,5 @@ namespace VFECore.Misc.HireableSystem
         {
             __result = __result || (HiringContractTracker.IsHired(bill.GiverPawn) && bill.recipe.Worker.IsViolationOnPawn(bill.GiverPawn, bill.Part, Faction.OfPlayer));
         }
-    }
-
-    public class Hireable : IGrouping<string, HireableFactionDef>
-    {
-        private static readonly AccessTools.FieldRef<CrossRefHandler, LoadedObjectDirectory> loadedObjectInfo =
-            AccessTools.FieldRefAccess<CrossRefHandler, LoadedObjectDirectory>("loadedObjectDirectory");
-
-        private readonly List<HireableFactionDef> factions;
-
-        public Hireable(string label, List<HireableFactionDef> list)
-        {
-            Key      = label;
-            factions = list;
-        }
-
-        public IEnumerator<HireableFactionDef> GetEnumerator() => factions.GetEnumerator();
-
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
-        public string Key               { get; }
     }
 }
