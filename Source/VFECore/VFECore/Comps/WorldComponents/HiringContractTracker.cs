@@ -160,68 +160,19 @@ namespace VFECore
         }
         */
 
-        // These variables will not be used anymore. They are only used to convert existing savegames to the new quest based hireables
         private class LegacySavegameData
         {
-            //public Dictionary<Hireable, List<ExposablePair>>
-            //    deadCount = new Dictionary<Hireable, List<ExposablePair>>(); //the pair being amount of dead people and at what tick it expires
-
-            private class ExposablePair : IExposable
-            {
-                public object key;
-                public object value;
-
-
-                public ExposablePair(object key, object value)
-                {
-                    this.key = key;
-                    this.value = value;
-                }
-
-                public void ExposeData()
-                {
-                    Scribe_Values.Look(ref key, nameof(key));
-                    Scribe_Values.Look(ref value, nameof(value));
-                }
-            }
-
             public int endTicks;
             public HireableFactionDef factionDef;
             public List<Pawn> pawns = [];
             public float price;
-            public class Hireable : IExposable, ILoadReferenceable
+            public string hireable;
+
+            public bool Valid;
+
+            public void ConvertToQuest()
             {
-                public string loadId;
-                public void ExposeData()
-                {
-                }
-
-                public string GetUniqueLoadID()
-                {
-                    return loadId;
-                }
-            }
-
-            private List<Hireable> deepSaavedHireables;
-
-            private void populateDeepSavedHireables()
-            {
-                if (deepSaavedHireables == null)
-                    deepSaavedHireables = new List<Hireable>();
-
-                if (deepSaavedHireables.Empty())
-                {
-                    deepSaavedHireables.Add(new Hireable { loadId = "Hireable_pirates" });
-                    deepSaavedHireables.Add(new Hireable { loadId = "VFE_FOOBAR_2" });
-                    deepSaavedHireables.Add(new Hireable { loadId = "VFE_FOOBAR_3" });
-                }
-            }
-
-            private List<string> deadCountKeys = [];
-            private List<List<ExposablePair>> deadCountValues = [];
-
-            public void FinalizeInit()
-            {
+                HireableUtil.SpawnHiredPawnsQuest(factionDef, null, endTicks - Find.TickManager.TicksAbs, price, Orders.ConvertSavegame());
             }
 
             public void ExposeData()
@@ -232,13 +183,12 @@ namespace VFECore
                 {
                     Scribe_Values.Look(ref endTicks, nameof(endTicks));
                     Scribe_Values.Look(ref price, "price");
+                    Scribe_Values.Look(ref hireable, "hireable");
                     Scribe_Defs.Look(ref factionDef, "faction");
                     Scribe_Collections.Look(ref pawns, nameof(pawns), LookMode.Reference);
 
-                    // We probably don't even need this one, because deaths are counted per faction now.
-                    // Scribe_References.Look(ref hireable, nameof(hireable));
-
-                    // Okay, so the way deadCount was saved is really messy. Let's try to load this stuff...
+                    // Okay, so the way deadCount was saved was really messy. And broken, two!
+                    // You never had any buisiness history whith the old version after loading.
 
                     // So we exposed a temporary 'List<Hireable>' with 'LookMode.Reference'.
                     // Because of the reference look mode, this means that the 'Hireable' instance
@@ -248,54 +198,27 @@ namespace VFECore
                     // but also inserting our keys.... Yuck ... terrible hack. So if you were wondering while
                     // with VFE installed you got messages that stuff isn't deepsaved, it is because of this hack!
 
-                    // Okay, so how do we deal with it? We should use Scribe to resolve this the correct way.
-                    // The most simple way is to just deep save some objects with the correct LoadIDs, and then have
-                    // Scribe resolve them.
-
-                    // Deepsave some 'ILoadReferenceables' that have the correct LoadID
-                    // populateDeepSavedHireables();
-                    // Scribe_Collections.Look(ref deepSaavedHireables, "notActuallyEverSavingThisSoTheNameIsFoobar", LookMode.Deep);
-
-                    // Populate our 'deadCountKeys' by reference. Those will be referencing the instances in 'deepSaavedHireables',
-                    // but only after Scribe is done resolving the references.
-
-                    // Let's check out when this is populated....
-
-                    Log.Message($"before deadCountKeys.Count = {deadCountKeys.Count}");
-                    Scribe_Collections.Look(ref deadCountKeys, "deadCountKey", LookMode.Value);
-                    Log.Message($"after  deadCountKeys.Count = {deadCountKeys.Count}");
-
-                    /*
-                    for (var i = 0; i < deadCountKeys.Count; i++)
-                    {
-                        List<ExposablePair> exposablePairs = deadCountValues.Count > i ? deadCountValues[i] : new List<ExposablePair>();
-                        
-                        Scribe_Collections.Look(ref exposablePairs, nameof(exposablePairs) + i, LookMode.Deep);
-
-                        if (deadCountValues.Count > i)
-                            deadCountValues[i] = exposablePairs;
-                        else
-                            deadCountValues.Add(exposablePairs);
-                    }
-                    */
-
-                    /*
-                    deadCount.Clear();
-                    for (var index = 0; index < deadCountKey.Count; index++)
-                        deadCount.Add(deadCountKey[index], deadCountValue[index]);
-                    */
+                    // Sadly no meaningfull buisiness history is ever saved, it saves *something* if you save
+                    // after killing hireables, but it doesn't really have anything to do with what happened.
+                    // Loading was totally broken by the way and always cleared the history. So not being
+                    // able to convert it here is not a big loss.
 
                     if (Scribe.mode == LoadSaveMode.PostLoadInit)
                     {
-                        Log.Message($"endTicks={endTicks}, price={price}, factionDef={factionDef}");
+                        Log.Message($"endTicks={endTicks}, price={price}, factionDef={factionDef}, hireable={hireable}");
 
                         foreach (Pawn p in pawns)
                         {
                             Log.Message($"pawn={p.Name}");
                         }
+
+                        pawns.RemoveWhere(p => p == null);
+
+                        // Check whether we have an active contract with pawns that the player is still controlling
+                        // The pawns might be leaving, but they would still belong to 'Faction.OfPlayer'
+                        if (hireable != null && pawns.Any(p => !p.Dead && p.Faction != null && p.Faction == Faction.OfPlayer))
+                            Valid = true;
                     }
-
-
                 }
             }
         }

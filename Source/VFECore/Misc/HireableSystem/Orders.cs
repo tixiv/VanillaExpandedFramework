@@ -19,6 +19,7 @@ namespace VFECore.Misc.HireableSystem
             SiteDropAtEdge,
             SiteDropInCenter,
             LandInExistingMap,
+            ConvertSavegame,
         }
 
         public Commands Command;
@@ -54,5 +55,12 @@ namespace VFECore.Misc.HireableSystem
             };
         }
 
+        public static Orders ConvertSavegame()
+        {
+            return new Orders
+            {
+                Command = Commands.ConvertSavegame
+            };
+        }
     }
 }
