@@ -161,58 +161,155 @@ namespace VFECore
         */
 
         // These variables will not be used anymore. They are only used to convert existing savegames to the new quest based hireables
-        public class legacyData
-        {
-            public int endTicks;
-            public HireableFactionDef factionDef;
-            public List<Pawn> pawns = [];
-            public float price;
-        }
-
-        private void loadLegacyStuffsBarfoo()
+        private class LegacySavegameData
         {
             //public Dictionary<Hireable, List<ExposablePair>>
             //    deadCount = new Dictionary<Hireable, List<ExposablePair>>(); //the pair being amount of dead people and at what tick it expires
 
-            // Scribe_Values.Look(ref endTicks, nameof(endTicks));
-
-            // Scribe_Collections.Look(ref this.pawns, nameof(this.pawns), LookMode.Reference);
-
-            // Scribe_References.Look(ref hireable, nameof(hireable));
-
-            /*
-            var deadCountKey = new List<Hireable>(deadCount.Keys);
-            Scribe_Collections.Look(ref deadCountKey, nameof(deadCountKey), LookMode.Reference);
-            var deadCountValue = new List<List<ExposablePair>>(deadCount.Values);
-            for (var i = 0; i < deadCountKey.Count; i++)
+            private class ExposablePair : IExposable
             {
-                var exposablePairs = deadCountValue.Count > i ? deadCountValue[i] : new List<ExposablePair>();
-                Scribe_Collections.Look(ref exposablePairs, nameof(exposablePairs) + i, LookMode.Deep);
+                public object key;
+                public object value;
 
-                if (deadCountValue.Count > i)
-                    deadCountValue[i] = exposablePairs;
-                else
-                    deadCountValue.Add(exposablePairs);
+
+                public ExposablePair(object key, object value)
+                {
+                    this.key = key;
+                    this.value = value;
+                }
+
+                public void ExposeData()
+                {
+                    Scribe_Values.Look(ref key, nameof(key));
+                    Scribe_Values.Look(ref value, nameof(value));
+                }
             }
 
+            public int endTicks;
+            public HireableFactionDef factionDef;
+            public List<Pawn> pawns = [];
+            public float price;
+            public class Hireable : IExposable, ILoadReferenceable
+            {
+                public string loadId;
+                public void ExposeData()
+                {
+                }
 
-            deadCount.Clear();
-            for (var index = 0; index < deadCountKey.Count; index++)
-                deadCount.Add(deadCountKey[index], deadCountValue[index]);
+                public string GetUniqueLoadID()
+                {
+                    return loadId;
+                }
+            }
 
-            */
+            private List<Hireable> deepSaavedHireables;
 
-            // Scribe_Values.Look(ref price, "price");
-            // Scribe_Defs.Look(ref factionDef, "faction");
+            private void populateDeepSavedHireables()
+            {
+                if (deepSaavedHireables == null)
+                    deepSaavedHireables = new List<Hireable>();
+
+                if (deepSaavedHireables.Empty())
+                {
+                    deepSaavedHireables.Add(new Hireable { loadId = "Hireable_pirates" });
+                    deepSaavedHireables.Add(new Hireable { loadId = "VFE_FOOBAR_2" });
+                    deepSaavedHireables.Add(new Hireable { loadId = "VFE_FOOBAR_3" });
+                }
+            }
+
+            private List<string> deadCountKeys = [];
+            private List<List<ExposablePair>> deadCountValues = [];
+
+            public void FinalizeInit()
+            {
+            }
+
+            public void ExposeData()
+            {
+                // Here we load the data from an old savegame to convert it to the new system
+
+                if (Scribe.mode != LoadSaveMode.Saving)
+                {
+                    Scribe_Values.Look(ref endTicks, nameof(endTicks));
+                    Scribe_Values.Look(ref price, "price");
+                    Scribe_Defs.Look(ref factionDef, "faction");
+                    Scribe_Collections.Look(ref pawns, nameof(pawns), LookMode.Reference);
+
+                    // We probably don't even need this one, because deaths are counted per faction now.
+                    // Scribe_References.Look(ref hireable, nameof(hireable));
+
+                    // Okay, so the way deadCount was saved is really messy. Let's try to load this stuff...
+
+                    // So we exposed a temporary 'List<Hireable>' with 'LookMode.Reference'.
+                    // Because of the reference look mode, this means that the 'Hireable' instance
+                    // is expected to be deepsaved somewhere else. That was not done by the old code,
+                    // Instead it used a harmony patch to make the 'LoadedObjectDirectory.Clear()' method
+                    // deep inside the scribe system have the side effect of not only clearing the directory,
+                    // but also inserting our keys.... Yuck ... terrible hack. So if you were wondering while
+                    // with VFE installed you got messages that stuff isn't deepsaved, it is because of this hack!
+
+                    // Okay, so how do we deal with it? We should use Scribe to resolve this the correct way.
+                    // The most simple way is to just deep save some objects with the correct LoadIDs, and then have
+                    // Scribe resolve them.
+
+                    // Deepsave some 'ILoadReferenceables' that have the correct LoadID
+                    // populateDeepSavedHireables();
+                    // Scribe_Collections.Look(ref deepSaavedHireables, "notActuallyEverSavingThisSoTheNameIsFoobar", LookMode.Deep);
+
+                    // Populate our 'deadCountKeys' by reference. Those will be referencing the instances in 'deepSaavedHireables',
+                    // but only after Scribe is done resolving the references.
+
+                    // Let's check out when this is populated....
+
+                    Log.Message($"before deadCountKeys.Count = {deadCountKeys.Count}");
+                    Scribe_Collections.Look(ref deadCountKeys, "deadCountKey", LookMode.Value);
+                    Log.Message($"after  deadCountKeys.Count = {deadCountKeys.Count}");
+
+                    /*
+                    for (var i = 0; i < deadCountKeys.Count; i++)
+                    {
+                        List<ExposablePair> exposablePairs = deadCountValues.Count > i ? deadCountValues[i] : new List<ExposablePair>();
+                        
+                        Scribe_Collections.Look(ref exposablePairs, nameof(exposablePairs) + i, LookMode.Deep);
+
+                        if (deadCountValues.Count > i)
+                            deadCountValues[i] = exposablePairs;
+                        else
+                            deadCountValues.Add(exposablePairs);
+                    }
+                    */
+
+                    /*
+                    deadCount.Clear();
+                    for (var index = 0; index < deadCountKey.Count; index++)
+                        deadCount.Add(deadCountKey[index], deadCountValue[index]);
+                    */
+
+                    if (Scribe.mode == LoadSaveMode.PostLoadInit)
+                    {
+                        Log.Message($"endTicks={endTicks}, price={price}, factionDef={factionDef}");
+
+                        foreach (Pawn p in pawns)
+                        {
+                            Log.Message($"pawn={p.Name}");
+                        }
+                    }
+
+
+                }
+            }
         }
 
-
+        LegacySavegameData legacyData = new LegacySavegameData();
 
         public override void ExposeData()
         {
             base.ExposeData();
 
             Log.Message($"Scribe mode = {Scribe.mode}");
+
+            // Handle loading old savegames
+            legacyData.ExposeData();
 
             // Okay, I finally understood how scribe works.
             // Here we call ExposeData on a 'Dictionary'. A 'Dictionary' is a kind of a map, so this one has a 'Key'
@@ -262,25 +359,4 @@ namespace VFECore
             SanitizeHireableFactions();
         }
     }
-
-    /*
-    public class ExposablePair : IExposable
-    {
-        public object key;
-        public object value;
-
-
-        public ExposablePair(object key, object value)
-        {
-            this.key   = key;
-            this.value = value;
-        }
-
-        public void ExposeData()
-        {
-            Scribe_Values.Look(ref key,   nameof(key));
-            Scribe_Values.Look(ref value, nameof(value));
-        }
-    }
-    */
 }
