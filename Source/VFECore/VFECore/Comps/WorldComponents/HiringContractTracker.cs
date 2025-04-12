@@ -23,64 +23,21 @@ namespace VFECore
             return cachedTracker;
         }
 
-        private Dictionary<HireableFactionDef, CommTarget_ViewContract> commTargetsViewContract = [];
-        private Dictionary<HireableFactionDef, CommTarget_Hire> commTargetsHire = [];
+        // Here is where the instances of our HireableFactions for each HireableFactionDef
+        // live. They are deep saved in this class.
 
+        private Dictionary<HireableFactionDef, HireableFaction> factions = [];
+
+        static int count;
         public HiringContractTracker(World world) : base(world)
         {
-        }
-
-        // Making history events generic like this will help in the future to add new ones
-        // without breaking upwards compatability to a new version of the mod
-        private class HistoryEvent : IExposable
-        {
-            public HireableFactionDef faction;
-            public int timestamp;
-
-            public virtual void ExposeData()
-            {
-                Scribe_Defs.Look(ref faction, nameof(faction));
-                Scribe_Values.Look(ref timestamp, nameof(timestamp));
-            }
-        }
-
-        private class HistoryEvent_PeopleKilled : HistoryEvent
-        {
-            public int numKilled;
-            public override void ExposeData()
-            {
-                base.ExposeData();
-                Scribe_Values.Look(ref numKilled, nameof(numKilled));
-            }
-        }
-
-        private List<HistoryEvent> HiringHistory = [];
-
-        private ICommunicable GetCommTarget_ViewContract(HireableFactionDef hireableFactionDef)
-        {
-            return commTargetsViewContract[hireableFactionDef];
-        }
-
-        private ICommunicable GetCommTarget_Hire(HireableFactionDef hireableFactionDef)
-        {
-            return commTargetsHire[hireableFactionDef];
+            Log.Message($"HiringContractTracker Constructor called {count++}");
         }
 
         public IEnumerable<ICommunicable> GetComTargets()
         {
-            var ongoingContracts = GetOngoingContracts();
-
-            foreach (var hireableFactionDef in HireableSystemStaticInitialization.Hireables)
-            {
-                if (GetOngoingContracts().Any(c => c.hireableFactionDef == hireableFactionDef))
-                {
-                    yield return GetCommTarget_ViewContract(hireableFactionDef);
-                }
-                else
-                {
-                    yield return GetCommTarget_Hire(hireableFactionDef);
-                }
-            }
+            foreach (var def in HireableSystemStaticInitialization.Hireables)                
+                yield return factions[def];
         }
 
         private static IEnumerable<Quest> getOngoingQuests() => Find.QuestManager.QuestsListForReading.Where(q => q.State == QuestState.Ongoing && q.root.defName == "VFECore_Hireables");
@@ -94,19 +51,9 @@ namespace VFECore
 
         public static bool IsHired(Pawn pawn) => GetOngoingContracts().Any(c => c.pawns.Contains(pawn));
 
-        private void AddLossesForFaction(HireableFactionDef hireableFactionDef, int numLost)
-        {
-            HiringHistory.Add(new HistoryEvent_PeopleKilled
-            {
-                timestamp = Find.TickManager.TicksGame,
-                faction = hireableFactionDef,
-                numKilled = numLost
-            });
-        }
-
         public void NotifyContractEnded(HireableFactionDef hireableFactionDef, int numDead, int numKidnapped)
         {
-            AddLossesForFaction(hireableFactionDef, numDead + numKidnapped);
+            factions[hireableFactionDef].NotifyLosses(numDead + numKidnapped);
         }
 
         public override void WorldComponentTick()
@@ -213,23 +160,6 @@ namespace VFECore
         }
         */
 
-        public float GetFactorForHireableFaction(HireableFactionDef hireableFactionDef)
-        {
-            int recentlyKilled = 0;
-
-            foreach (var historyEvent in HiringHistory.OfType<HistoryEvent_PeopleKilled>().Where(h => h.faction == hireableFactionDef))
-            {
-                if (Find.TickManager.TicksGame > historyEvent.timestamp + GenDate.TicksPerYear)
-                    HiringHistory.Remove(historyEvent);
-                else
-                    recentlyKilled += historyEvent.numKilled;
-            }
-
-            Log.Message($"GetFactorForHireableFaction {hireableFactionDef.LabelCap}: recentlyKilled={recentlyKilled}");
-
-            return 0.05f * recentlyKilled;
-        }
-
         // These variables will not be used anymore. They are only used to convert existing savegames to the new quest based hireables
         public class legacyData
         {
@@ -284,49 +214,52 @@ namespace VFECore
 
             Log.Message($"Scribe mode = {Scribe.mode}");
 
-            // Okay, I finally understood how scribe works. When using 'Scribe_Collections.Look' with a 'List'
-            // We get one 'LookMode' argument, that one is for the values in the 'List'. Lists don't have keys.
-            // Using 'LookMode.Deep' here means we are calling the 'ExposeData()' method on the values in the list
-            // to add them to the savegame. That is exactly what we want, because any future history event can just
-            // implement ExposeData() to save it's state.
-
-            Scribe_Collections.Look(ref HiringHistory, nameof(HiringHistory), LookMode.Deep);
-
+            // Okay, I finally understood how scribe works.
             // Here we call ExposeData on a 'Dictionary'. A 'Dictionary' is a kind of a map, so this one has a 'Key'
             // that maps to a 'Value'. For each 'Key' there is one 'Value'. In C++ this would be 'std::map'.
             // Here 'Scribe_Collections' gives us two arguments for the 'LookMode'. The first one is for the 'Key',
-            // the second one is for the 'Value'. We give 'LookMode.Def' for the key, because it is a 'Def' from
-            // the XML files. We give 'LookMode.Deep' for the value because it implements 'IExposable'. Here the
-            // 'Value' also implements 'ILoadReferenceable'. That one will also only be tracked if we call it here
+            // the second one is for the 'Value'. We give 'LookMode.Def' for the key, because it is a 'HireableFactionDef'
+            //  from the XML files. We give 'LookMode.Deep' for the value because it implements 'IExposable'. Here the
+            // 'Value' also implements 'ILoadReferenceable'. That one will also only be tracked by Scribe if we call it here
             // with 'LookMode.Deep'.
-            // By the way: This stuff mainly needs to get saved to the savegame in case you order a colonist to use the
-            // comms console, and then you save the game before they walk to it. The job needs to have the ICommunicable
-            // that the colonist is going to use to be load referenceable so he can complete the job after reload.
+            // By the way: 'ILoadRefernceable' on the 'HireableFaction' is mainly needed for the usecase when you order a
+            // colonist to use the comms console, and then you save the game while they are walking to it. The job needs to have
+            // the 'ICommunicable' that the colonist is going to use to be load referenceable so he can complete the job after
+            // reloading the savegame.
 
-            Scribe_Collections.Look(ref commTargetsHire,         nameof(commTargetsHire),         LookMode.Def, LookMode.Deep);
-            Scribe_Collections.Look(ref commTargetsViewContract, nameof(commTargetsViewContract), LookMode.Def, LookMode.Deep);
+            Scribe_Collections.Look(ref factions, nameof(factions), LookMode.Def, LookMode.Deep);
 
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
                 // Here we make sure that if we load a savegame that doesn't have this stuff yet (mod just got installed)
                 // That we add them if they were not loaded from the savegame.
-
-                if (commTargetsHire == null)
-                    commTargetsHire = [];
-                if (commTargetsViewContract == null)
-                    commTargetsViewContract = [];
-
-                foreach (var hireableFactionDef in HireableSystemStaticInitialization.Hireables)
-                {
-                    // If any new hireable faction was added we add their commTargets here.
-
-                    if (!commTargetsHire.ContainsKey(hireableFactionDef))
-                        commTargetsHire.Add(hireableFactionDef, new CommTarget_Hire(hireableFactionDef));
-
-                    if (!commTargetsViewContract.ContainsKey(hireableFactionDef))
-                        commTargetsViewContract.Add(hireableFactionDef, new CommTarget_ViewContract(hireableFactionDef));
-                }
+                SanitizeHireableFactions();
             }
+        }
+
+        private void SanitizeHireableFactions()
+        {
+            if (factions == null)
+                factions = [];
+
+            // If any hireable factions got removed, we also remove them here.
+
+            foreach (var f in factions)
+                if (!HireableSystemStaticInitialization.Hireables.Contains(f.Key))
+                    factions.Remove(f.Key);
+
+            // If any new 'HierableFactionDef' have been created we add a 'HireableFaction' instance
+
+            foreach (var def in HireableSystemStaticInitialization.Hireables)
+                if (!factions.ContainsKey(def))
+                    factions.Add(def, new HireableFaction(def));
+        }
+
+        public override void FinalizeInit()
+        {
+            base.FinalizeInit();
+            Log.Message("Finalize init called");
+            SanitizeHireableFactions();
         }
     }
 

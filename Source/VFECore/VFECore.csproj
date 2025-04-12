@@ -477,9 +477,8 @@
     <Compile Include="Genes\Harmony\FoodUtility_GetMeatSourceCategory.cs" />
     <Compile Include="Genes\Harmony\FoodUtility_GetMeatSourceCategoryFromCorpse.cs" />
     <Compile Include="Genes\Harmony\ThoughtWorker_HumanLeatherApparel_CurrentThoughtState.cs" />
-    <Compile Include="Misc\HireableSystem\CommTarget_Hire.cs" />
     <Compile Include="Misc\HireableSystem\DebugStuff.cs" />
-    <Compile Include="Misc\HireableSystem\CommTarget_ViewContract.cs" />
+    <Compile Include="Misc\HireableSystem\HireableFaction.cs" />
     <Compile Include="Misc\HireableSystem\HireableUtil.cs" />
     <Compile Include="Misc\HireableSystem\Orders.cs" />
     <Compile Include="Misc\HireableSystem\QuestPartGiveToCaravan.cs" />
@@ -1021,7 +1020,7 @@
     <Compile Include="Memes\Harmony\Pawn_IdeoTracker_SetIdeo.cs" />
     <Compile Include="Memes\MapComponents\MapComponent_IdeologicalGoodies.cs" />
     <Compile Include="Misc\HireableSystem\Dialog_Hire.cs" />
-    <Compile Include="Misc\HireableSystem\EquipmentOffsetConditions.cs" />
+    <Compile Include="Misc\EquipmentOffsetConditions.cs" />
     <Compile Include="Misc\HireableSystem\HireableFactionDef.cs" />
     <Compile Include="Misc\HireableSystem\HireableSystemStaticInitialization.cs" />
     <Compile Include="Misc\StatPart_Ammo.cs" />

@@ -35,10 +35,10 @@ namespace VFECore.Misc.HireableSystem
         private Window pauseWindow = new InvisiblePauseWindow();
         private Orders orders;
 
-        public Dialog_Hire(Thing negotiator, HireableFactionDef hireableFactionDef)
+        public Dialog_Hire(Thing negotiator, HireableFaction hireableFaction)
         {
             currentMap = negotiator.Map;
-            this.hireableFactionDef = hireableFactionDef;
+            this.hireableFactionDef = hireableFaction.Def;
             hireData = hireableFactionDef.pawnKinds.ToDictionary(def => def, _ => new Pair<int, string>(0, ""));
 
             closeOnCancel = true;
@@ -49,7 +49,7 @@ namespace VFECore.Misc.HireableSystem
             availableSilver = currentMap.listerThings.ThingsOfDef(ThingDefOf.Silver)
                                     .Where(x => !x.Position.Fogged(x.Map) && (currentMap.areaManager.Home[x.Position] || x.IsInAnyStorage())).Sum(t => t.stackCount);
             
-            riskMultiplier = Find.World.GetComponent<HiringContractTracker>().GetFactorForHireableFaction(hireableFactionDef);
+            riskMultiplier = hireableFaction.GetFactorForHireableFaction();
             targetChooser = new TargetChooser(currentMap);
             orders = Orders.LandInExistingMap(currentMap.Parent);
         }
