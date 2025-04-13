@@ -56,9 +56,17 @@ namespace VFECore
             factions[hireableFactionDef].NotifyLosses(numDead + numKidnapped);
         }
 
+        private bool checkedIfSavegameNeedsConversion = false;
         public override void WorldComponentTick()
         {
             base.WorldComponentTick();
+
+            if (!checkedIfSavegameNeedsConversion)
+            {
+                checkedIfSavegameNeedsConversion = true;
+                if (legacyData.Valid)
+                    legacyData.ConvertToQuest();
+            }
 
             /* 
             if (Find.TickManager.TicksAbs % 150 == 0 && Find.TickManager.TicksAbs > endTicks && this.pawns.Any())
@@ -172,7 +180,7 @@ namespace VFECore
 
             public void ConvertToQuest()
             {
-                HireableUtil.SpawnHiredPawnsQuest(factionDef, null, endTicks - Find.TickManager.TicksAbs, price, Orders.ConvertSavegame());
+                HireableUtil.SpawnHiredPawnsQuest(factionDef, null, endTicks - Find.TickManager.TicksAbs, price, Orders.ConvertSavegame(), pawns);
             }
 
             public void ExposeData()

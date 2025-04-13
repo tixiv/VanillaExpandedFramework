@@ -110,7 +110,7 @@ namespace VFECore.Misc.HireableSystem
         {
             if (!script.CanRun(slate))
             {
-                Messages.Message("Failed to generate quest. CanRun returned false.", MessageTypeDefOf.RejectInput, false);
+                Log.Error("Failed to generate quest. CanRun() returned false.");
             }
             else
             {
@@ -118,15 +118,15 @@ namespace VFECore.Misc.HireableSystem
             }
         }
 
-        public static void SpawnHiredPawnsQuest(HireableFactionDef hireableFaction, HireData hireData, int daysAmount, float price, Orders orders, List<Pawn>pawns = null)
+        public static void SpawnHiredPawnsQuest(HireableFactionDef hireableFaction, HireData hireData, int questDurationTicks, float price, Orders orders, List<Pawn>pawns = null)
         {
             Slate slate = new Slate();
             slate.Set<HireableFactionDef>("hireableFaction", hireableFaction);
             slate.Set<HireData>("hireData", hireData);
-            slate.Set<int>("questDurationTicks", daysAmount * 60000);
+            slate.Set<int>("questDurationTicks", questDurationTicks);
             slate.Set<float>("price", price);
             slate.Set<Orders>("orders", orders);
-            slate.Set("pawns", pawns);
+            slate.Set<List<Pawn>>("pawns", pawns);
 
             generateQuest(QuestDefOf.VFECore_Hireables, slate);
         }

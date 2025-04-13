@@ -28,19 +28,28 @@ namespace VFECore.Misc.HireableSystem
             float price = slate.Get<float>("price");
             var orders = slate.Get<Orders>("orders");
 
-            int questDurationTicks = 10000;
+            int questDurationTicks = slate.Get<int>("questDurationTicks");
 
             Faction faction = getOrMakeFactionOfDef(in hireableFaction, out Faction temporaryFaction);
 
-            if (faction != null)
-                Log.Message($"Setting faction to {faction.Name}");
+            Log.Message($"Setting faction to {faction.Name}");
+
+            List<Pawn> pawns = null;
+            if (orders.Command == Orders.Commands.ConvertSavegame)
+            {
+                pawns = slate.Get<List<Pawn>>("pawns");
+
+                // Return dead pawns to their home faction
+                // This normally done by QuestPart_ExtraFaction
+                foreach (Pawn p in pawns)
+                    if (p.Dead)
+                        p.SetFaction(faction);
+
+            }
             else
             {
-                Log.Error("faction is null?!?");
-                return;
+                pawns = HireableUtil.generatePawns(in hireData, faction, quest);
             }
-
-            List<Pawn> pawns = HireableUtil.generatePawns(in hireData, faction, quest);
 
             slate.Set<int>("mercenaryCount", pawns.Count);
             slate.Set<Pawn>("asker", pawns.First<Pawn>());
@@ -55,19 +64,21 @@ namespace VFECore.Misc.HireableSystem
             // This quest part will make the pawns display a second faction, their home faction, while being hired.
             // This happens as long as the quest state is ongoing and this part includes the pawns.
 
-            QuestPart_ExtraFaction extraFactionPart = quest.ExtraFaction(faction, pawns, ExtraFactionType.MiniFaction, false, [removePawnSignal]);
-
+            QuestPart_ExtraFaction extraFactionPart = quest.ExtraFaction(faction, pawns.Where(p => p.Faction == Faction.OfPlayer), ExtraFactionType.MiniFaction, false, [removePawnSignal]);
 
             QuestPart_HireableContract hireableContractPart = quest.HireableContract(hireableFaction, faction, temporaryFaction, pawns, price, questDurationTicks);
             hireableContractPart.outSignal_RemovePawn = removePawnSignal;
             hireableContractPart.outSignal_Completed = contractCompletedSignal;
             hireableContractPart.outSignal_AssaultColony = assaultColonySignal;
 
-            foreach (var pawn in pawns)
+            if (orders.Command != Orders.Commands.ConvertSavegame)
             {
-                pawn.SetFaction(Faction.OfPlayer);
-                if (pawn.playerSettings != null)
-                    pawn.playerSettings.hostilityResponse = HostilityResponseMode.Attack;
+                foreach (var pawn in pawns)
+                {
+                    pawn.SetFaction(Faction.OfPlayer);
+                    if (pawn.playerSettings != null)
+                        pawn.playerSettings.hostilityResponse = HostilityResponseMode.Attack;
+                }
             }
 
             if (orders.WorldObject is MapParent mapParent && orders.Command == Orders.Commands.LandInExistingMap)
@@ -107,6 +118,7 @@ namespace VFECore.Misc.HireableSystem
                 quest.GiveToCaravan(pawns, caravan);
                 quest.Letter(LetterDefOf.PositiveEvent, text: "Your hired mercenaries have joined " + caravan.Label + ".", label: "mercenaries arrived", lookTargets: pawns.Where(p => !p.Dead));
             }
+            else if (orders.Command == Orders.Commands.ConvertSavegame) { }
             else
             {
                 Log.Error($"Bad orders {orders}");
@@ -132,7 +144,6 @@ namespace VFECore.Misc.HireableSystem
                 Log.Message($"QuestNodeRoot end: Faction is null");
 
             Log.Message($"Quest part reserves faction: {extraFactionPart.QuestPartReserves(faction)}");
-
         }
 
         private Faction getOrMakeFactionOfDef(in HireableFactionDef hireableFaction, out Faction temporaryFaction)

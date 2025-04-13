@@ -93,7 +93,7 @@ namespace VFECore.Misc.HireableSystem
                 foreach (KeyValuePair<PawnKindDef, Pair<int, string>> kvp in hireData.Where(kvp => kvp.Value.First > 0))
                     list.Add(new Pair<PawnKindDef, int>(kvp.Key, kvp.Value.First));
 
-                HireableUtil.SpawnHiredPawnsQuest(hireableFactionDef, in list, daysAmount, CostFinal, orders);
+                HireableUtil.SpawnHiredPawnsQuest(hireableFactionDef, list, daysAmount * 60000, CostFinal, orders);
             }
         }
 

@@ -16,19 +16,16 @@ namespace VFECore
 
         protected override IEnumerable<Toil> MakeNewToils()
         {
-            return [];
-            /*
+            // Legacy job from the old Hireable framework
+
+            // Also yield two toils (like the old job did) so when an old game is loaded you
+            // don't get an error about this job not having the requested toil.
+            // The pawns will leave the map now through the quest after it gets converted.
+            // pawns might still have this job on load thoguh, that is why this job
+            // driver with two toils in it is needed to load cleanly.
+
             yield return Toils_Goto.GotoCell(TargetIndex.A, PathEndMode.ClosestTouch);
-            yield return new Toil
-                         {
-                             initAction = () =>
-                                          {
-                                              FleckMaker.ThrowSmoke(this.pawn.Position.ToVector3(), this.Map, 2f);
-                                              this.pawn.ExitMap(false, Rot4.Random);
-                                              Find.World.GetComponent<HiringContractTracker>().pawns.Remove(this.pawn);
-                                          }
-                         }.FailOn(() => this.pawn.Dead);
-            */
+            yield return Toils_Goto.GotoCell(TargetIndex.A, PathEndMode.ClosestTouch);
         }
     }
 }
