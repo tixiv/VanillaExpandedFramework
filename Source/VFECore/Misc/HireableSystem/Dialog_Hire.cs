@@ -26,7 +26,7 @@ namespace VFECore.Misc.HireableSystem
         private readonly Dictionary<PawnKindDef, Pair<int, string>> hireData;
         private readonly float riskMultiplier;
         private readonly Map currentMap;
-        private HireableFactionDef hireableFactionDef;
+        private HireableFaction hireableFaction;
         private HireableFactionDef curFaction;
         private int daysAmount;
         private string daysAmountBuffer;
@@ -37,9 +37,9 @@ namespace VFECore.Misc.HireableSystem
 
         public Dialog_Hire(Thing negotiator, HireableFaction hireableFaction)
         {
+            this.hireableFaction = hireableFaction;
             currentMap = negotiator.Map;
-            this.hireableFactionDef = hireableFaction.Def;
-            hireData = hireableFactionDef.pawnKinds.ToDictionary(def => def, _ => new Pair<int, string>(0, ""));
+            hireData = hireableFaction.Def.pawnKinds.ToDictionary(def => def, _ => new Pair<int, string>(0, ""));
 
             closeOnCancel = true;
             forcePause = true;
@@ -48,7 +48,7 @@ namespace VFECore.Misc.HireableSystem
 
             availableSilver = currentMap.listerThings.ThingsOfDef(ThingDefOf.Silver)
                                     .Where(x => !x.Position.Fogged(x.Map) && (currentMap.areaManager.Home[x.Position] || x.IsInAnyStorage())).Sum(t => t.stackCount);
-            
+
             riskMultiplier = hireableFaction.GetFactorForHireableFaction();
             targetChooser = new TargetChooser(currentMap);
             orders = Orders.LandInExistingMap(currentMap.Parent);
@@ -60,7 +60,7 @@ namespace VFECore.Misc.HireableSystem
 
         private float CostDays => Mathf.Pow(daysAmount, 0.8f);
 
-        private float CostFinal => CostBase * (riskMultiplier + 1f);
+        private float CostFinal => CostBase * riskMultiplier;
 
 
         private float CostPawns(ICollection<PawnKindDef> except = null) =>
@@ -93,7 +93,7 @@ namespace VFECore.Misc.HireableSystem
                 foreach (KeyValuePair<PawnKindDef, Pair<int, string>> kvp in hireData.Where(kvp => kvp.Value.First > 0))
                     list.Add(new Pair<PawnKindDef, int>(kvp.Key, kvp.Value.First));
 
-                HireableUtil.SpawnHiredPawnsQuest(hireableFactionDef, list, daysAmount * 60000, CostFinal, orders);
+                HireableUtil.SpawnHiredPawnsQuest(hireableFaction, list, daysAmount * 60000, CostFinal, orders);
             }
         }
 
@@ -128,12 +128,12 @@ namespace VFECore.Misc.HireableSystem
             var font = Text.Font;
             Text.Anchor = TextAnchor.MiddleLeft;
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(rect.x, rect.y, rect.width, 40f), "VEF.Hire".Translate(hireableFactionDef.LabelCap));
+            Widgets.Label(new Rect(rect.x, rect.y, rect.width, 40f), "VEF.Hire".Translate(hireableFaction.Def.LabelCap));
             Text.Font = GameFont.Small;
             rect.yMin += 40f;
             Widgets.Label(new Rect(rect.x, rect.y, rect.width, 20f), "VEF.AvailableSilver".Translate(availableSilver.ToStringMoney()));
             rect.yMin += 30f;
-            DoHireableFaction(ref rect, hireableFactionDef);
+            DoHireableFaction(ref rect, hireableFaction.Def);
             var breakDownRect = rect.TakeTopPart(100f);
             breakDownRect.xMin += 115f;
             Text.Anchor = TextAnchor.UpperLeft;
@@ -148,7 +148,7 @@ namespace VFECore.Misc.HireableSystem
             Widgets.DrawLightHighlight(infoRect);
             Widgets.Label(infoRect.LeftHalf(), "VEF.DayAmount".Translate());
             UIUtility.DrawCountAdjuster(ref daysAmount, infoRect.RightHalf(), ref daysAmountBuffer, 0, 60, false, null,
-                                        Mathf.Max(Mathf.FloorToInt(Mathf.Pow(availableSilver / (riskMultiplier + 1f) / CostPawns(), 1f / 0.8f)), 1));
+                                        Mathf.Max(Mathf.FloorToInt(Mathf.Pow(availableSilver / riskMultiplier / CostPawns(), 1f / 0.8f)), 1));
             infoRect.y += 20f;
             Widgets.DrawHighlight(infoRect);
             Widgets.Label(infoRect.LeftHalf(), "VEF.Cost".Translate());
@@ -177,7 +177,7 @@ namespace VFECore.Misc.HireableSystem
             }
 
             Text.Font = GameFont.Tiny;
-            Widgets.Label(rect.ContractedBy(30f, 0f), "VEF.HiringDesc".Translate(hireableFactionDef.LabelCap).Colorize(ColoredText.SubtleGrayColor));
+            Widgets.Label(rect.ContractedBy(30f, 0f), "VEF.HiringDesc".Translate(hireableFaction.Def.LabelCap).Colorize(ColoredText.SubtleGrayColor));
             Text.Anchor = anchor;
             Text.Font = font;
         }
@@ -225,7 +225,7 @@ namespace VFECore.Misc.HireableSystem
                 var amount = data.First;
                 var buffer = data.Second;
                 UIUtility.DrawCountAdjuster(ref amount, numRect, ref buffer, 0, 99, curFaction != null && curFaction != def, null, Mathf.Max(Mathf.FloorToInt(Mathf.Pow(
-                                             (availableSilver / (riskMultiplier + 1f) / CostDays - CostPawns(new HashSet<PawnKindDef> { kind })) /
+                                             (availableSilver / riskMultiplier / CostDays - CostPawns(new HashSet<PawnKindDef> { kind })) /
                                              kind.combatPower, 1f / 1.2f)), 0));
                 if (amount != data.First || buffer != data.Second)
                 {

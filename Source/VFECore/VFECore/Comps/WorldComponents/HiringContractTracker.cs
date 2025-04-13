@@ -51,11 +51,6 @@ namespace VFECore
 
         public static bool IsHired(Pawn pawn) => GetOngoingContracts().Any(c => c.pawns.Contains(pawn));
 
-        public void NotifyContractEnded(HireableFactionDef hireableFactionDef, int numDead, int numKidnapped)
-        {
-            factions[hireableFactionDef].NotifyLosses(numDead + numKidnapped);
-        }
-
         private bool checkedIfSavegameNeedsConversion = false;
         public override void WorldComponentTick()
         {
@@ -65,7 +60,7 @@ namespace VFECore
             {
                 checkedIfSavegameNeedsConversion = true;
                 if (legacyData.Valid)
-                    legacyData.ConvertToQuest();
+                    legacyData.ConvertToQuest(factions);
             }
 
             /* 
@@ -178,9 +173,9 @@ namespace VFECore
 
             public bool Valid;
 
-            public void ConvertToQuest()
+            public void ConvertToQuest(Dictionary<HireableFactionDef, HireableFaction> factions)
             {
-                HireableUtil.SpawnHiredPawnsQuest(factionDef, null, endTicks - Find.TickManager.TicksAbs, price, Orders.ConvertSavegame(), pawns);
+                HireableUtil.SpawnHiredPawnsQuest(factions[factionDef], null, endTicks - Find.TickManager.TicksAbs, price, Orders.ConvertSavegame(), pawns);
             }
 
             public void ExposeData()
@@ -220,11 +215,9 @@ namespace VFECore
                             Log.Message($"pawn={p.Name}");
                         }
 
-                        pawns.RemoveWhere(p => p == null);
-
                         // Check whether we have an active contract with pawns that the player is still controlling
                         // The pawns might be leaving, but they would still belong to 'Faction.OfPlayer'
-                        if (hireable != null && pawns.Any(p => !p.Dead && p.Faction != null && p.Faction == Faction.OfPlayer))
+                        if (hireable != null && pawns.Any(p => p!= null && !p.Dead && p.Faction != null && p.Faction == Faction.OfPlayer))
                             Valid = true;
                     }
                 }

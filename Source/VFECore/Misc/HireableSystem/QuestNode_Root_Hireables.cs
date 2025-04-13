@@ -23,14 +23,14 @@ namespace VFECore.Misc.HireableSystem
             Quest quest = QuestGen.quest;
             Slate slate = QuestGen.slate;
 
-            var hireableFaction = slate.Get<HireableFactionDef>("hireableFaction");
+            var hireableFaction = slate.Get<HireableFaction>("hireableFaction");
             var hireData = slate.Get<HireData>("hireData");
             float price = slate.Get<float>("price");
             var orders = slate.Get<Orders>("orders");
 
             int questDurationTicks = slate.Get<int>("questDurationTicks");
 
-            Faction faction = getOrMakeFactionOfDef(in hireableFaction, out Faction temporaryFaction);
+            Faction faction = getOrMakeFactionOfDef(in hireableFaction.Def, out Faction temporaryFaction);
 
             Log.Message($"Setting faction to {faction.Name}");
 
@@ -42,9 +42,15 @@ namespace VFECore.Misc.HireableSystem
                 // Return dead pawns to their home faction
                 // This normally done by QuestPart_ExtraFaction
                 foreach (Pawn p in pawns)
-                    if (p.Dead)
+                    if (p!= null && p.Dead == true)
                         p.SetFaction(faction);
 
+                foreach (Pawn p in pawns)
+                {
+                    Log.Message($"converting {p} {p?.Dead}");
+                    if (p == null || p.Dead)
+                        hireableFaction.NotifyPawnKilled();
+                }
             }
             else
             {

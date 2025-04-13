@@ -28,6 +28,7 @@ namespace VFECore.Misc.HireableSystem
         public ContractInfo contractInfo = new();
         public Faction faction;
         public Faction temporaryFaction;
+        public HireableFaction hireableFaction;
         int deadCount = 0;
 
         public string outSignal_RemovePawn;
@@ -45,6 +46,7 @@ namespace VFECore.Misc.HireableSystem
 
             Scribe_References.Look(ref faction, "faction");
             Scribe_References.Look(ref temporaryFaction, "temporaryFaction");
+            Scribe_References.Look(ref hireableFaction, "hireableFaction");
             Scribe_Values.Look(ref deadCount, "deadCount");
 
             Scribe_Values.Look(ref outSignal_RemovePawn, "outSignal_RemovePawn");
@@ -86,13 +88,17 @@ namespace VFECore.Misc.HireableSystem
         {
             if (this.State == QuestPartState.Enabled)
             {
-                Log.Message($"Pawn killed: {pawn.LabelCap}");
+                Log.Message($"Pawn killed: {pawn.LabelCap}, dinfo={dinfo}, intended_traget={dinfo?.IntendedTarget}");
 
                 if (contractInfo.pawns.Contains(pawn))
                 {
-                    deadCount++;
                     Log.Message($"It was a quest pawn");
-                    if (deadCount > 1)
+
+                    hireableFaction.NotifyPawnKilled();
+                    deadCount++;
+
+                    if ((dinfo?.Instigator?.Faction == Faction.OfPlayer && dinfo?.IntendedTarget == pawn) || // Murdered on purpose
+                        (deadCount > 1 && dinfo?.Instigator?.Faction == Faction.OfPlayer)) // To much friendly fire
                     {
                         Log.Message($"To many dead, assault!!!");
 
@@ -107,17 +113,29 @@ namespace VFECore.Misc.HireableSystem
             }
         }
 
-        private Map TryGetMapFromPawns()
+        private List<Map> TryGetMapsFromPawns()
         {
+            List <Map> list = new List <Map>();
+
             foreach (var p in contractInfo.pawns)
                 if (p != null && !p.Dead && p.Map != null)
-                    return p.Map;
+                    list.AddDistinct(p.Map);
 
-            return null;        
+            return list;        
         }
 
         private void AssaultColony(HistoryEventDef reason)
         {
+            var caravanPawns = contractInfo.pawns.Where(p => p.GetCaravan() != null);
+            foreach (Pawn p in caravanPawns)
+            {
+                // Remove from caravan
+                RemoveCaravanPawn(p.GetCaravan(), p);
+
+                // Return pawn to home faction
+                p.SetFaction(this.faction);
+            }
+
             if (this.faction.HostileTo(Faction.OfPlayer))
             {
                 // achieved: faction is hostile to player anyway. The faction can just attack. Nothing to do.
@@ -145,17 +163,14 @@ namespace VFECore.Misc.HireableSystem
                 }
             }
 
-            var map = TryGetMapFromPawns();
-            if (map != null)
+            foreach (Map map in TryGetMapsFromPawns())
             {
-
-                Lord lord = LordMaker.MakeNewLord(this.faction, new LordJob_AssaultColony(this.faction, true, true, false, false, true, false, true), map, null);
+                Lord lord = LordMaker.MakeNewLord(this.faction, new LordJob_AssaultColony(this.faction, canPickUpOpportunisticWeapons: true), map);
                 foreach (Pawn p in contractInfo.pawns)
-                    if (p != null && !p.Dead)
+                    if (p != null && !p.Dead && p.Map == map)
                         lord.AddPawn(p);
             }
         }
-
 
         private List<Pawn> getKidnappedPawns()
         {
@@ -207,14 +222,11 @@ namespace VFECore.Misc.HireableSystem
 
             foreach (Pawn p in caravanPawns)
             {
-                {
-                    Caravan caravan = p.GetCaravan();
-                    // Remove from caravan
-                    RemoveCaravanPawn(caravan, p);
+                // Remove from caravan
+                RemoveCaravanPawn(p.GetCaravan(), p);
 
-                    // Return pawn to home faction
-                    p.SetFaction(this.faction);
-                }
+                // Return pawn to home faction
+                p.SetFaction(this.faction);
             }
 
             List<Pawn> pawnsToLeaveMap = contractInfo.pawns.Where(p => p != null && !p.Dead && !kidnappedPawns.Contains(p) && !caravanPawns.Contains(p)).ToList();
@@ -250,7 +262,7 @@ namespace VFECore.Misc.HireableSystem
 
     public static partial class QuestGen_Hireable
     {
-        public static QuestPart_HireableContract HireableContract(this Quest quest, HireableFactionDef hireableFactionDef, Faction faction, Faction temporaryFaction, IEnumerable<Pawn> pawns, float price, int delayTicks, string inSignalEnable = null, string inSignalDisable = null)
+        public static QuestPart_HireableContract HireableContract(this Quest quest, HireableFaction hireableFaction, Faction faction, Faction temporaryFaction, IEnumerable<Pawn> pawns, float price, int delayTicks, string inSignalEnable = null, string inSignalDisable = null)
         {
             QuestPart_HireableContract qp = new QuestPart_HireableContract();
             qp.delayTicks = delayTicks;
@@ -266,7 +278,8 @@ namespace VFECore.Misc.HireableSystem
 
             qp.faction = faction;
             qp.temporaryFaction = temporaryFaction;
-            qp.contractInfo.hireableFactionDef = hireableFactionDef;
+            qp.hireableFaction = hireableFaction;
+            qp.contractInfo.hireableFactionDef = hireableFaction.Def;
             qp.contractInfo.pawns = [.. pawns];
             qp.contractInfo.price = price;
             qp.contractInfo.endTicks = Find.TickManager.TicksAbs + delayTicks;

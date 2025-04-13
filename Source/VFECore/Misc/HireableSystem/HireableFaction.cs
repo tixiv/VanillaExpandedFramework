@@ -32,42 +32,45 @@ namespace VFECore.Misc.HireableSystem
             }
         }
 
-        private class HistoryEvent_PeopleKilled : HistoryEvent
-        {
-            public int numKilled;
-            public override void ExposeData()
-            {
-                base.ExposeData();
-                Scribe_Values.Look(ref numKilled, nameof(numKilled));
-            }
-        }
+        private class HistoryEvent_Killed : HistoryEvent { }
+        private class HistoryEvent_Kidnapped : HistoryEvent { }
+        private class HistoryEvent_Downed : HistoryEvent { }
+
+
 
         private List<HistoryEvent> HiringHistory = [];
 
-        public void NotifyLosses(int numLost)
+        public void NotifyPawnKilled()
         {
-            HiringHistory.Add(new HistoryEvent_PeopleKilled
+            Log.Message("HireableFaction.NotifyPawnKilled");
+
+            HiringHistory.Add(new HistoryEvent_Killed
             {
                 timestamp = Find.TickManager.TicksGame,
-                numKilled = numLost
+            });
+        }
+
+        public void NotifyPawnKidnapped()
+        {
+            HiringHistory.Add(new HistoryEvent_Kidnapped
+            {
+                timestamp = Find.TickManager.TicksGame,
             });
         }
 
         public float GetFactorForHireableFaction()
         {
-            int recentlyKilled = 0;
+            HiringHistory.RemoveWhere(h => h is HistoryEvent_Killed && (Find.TickManager.TicksGame > h.timestamp + GenDate.TicksPerYear));
+            HiringHistory.RemoveWhere(h => h is HistoryEvent_Kidnapped && (Find.TickManager.TicksGame > h.timestamp + GenDate.TicksPerYear));
+            HiringHistory.RemoveWhere(h => h is HistoryEvent_Downed && (Find.TickManager.TicksGame > h.timestamp + GenDate.TicksPerYear / 2));
 
-            foreach (var historyEvent in HiringHistory.OfType<HistoryEvent_PeopleKilled>())
-            {
-                if (Find.TickManager.TicksGame > historyEvent.timestamp + GenDate.TicksPerYear)
-                    HiringHistory.Remove(historyEvent);
-                else
-                    recentlyKilled += historyEvent.numKilled;
-            }
+            int recentLosses = HiringHistory.OfType<HistoryEvent_Killed>().Count()
+                             + HiringHistory.OfType<HistoryEvent_Kidnapped>().Count();
+            int recentDowns  = HiringHistory.OfType<HistoryEvent_Downed>().Count();
 
-            Log.Message($"GetFactorForHireableFaction {Def.LabelCap}: recentlyKilled={recentlyKilled}");
+            Log.Message($"GetFactorForHireableFaction {Def.LabelCap}: recentLosses={recentLosses}, recentDowns={recentDowns}");
 
-            return 0.05f * recentlyKilled;
+            return 1.0f + 0.05f * recentLosses + 0.025f * recentDowns;
         }
 
         private ContractInfo TryGetContractInfo()

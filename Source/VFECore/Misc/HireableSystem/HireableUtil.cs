@@ -118,10 +118,10 @@ namespace VFECore.Misc.HireableSystem
             }
         }
 
-        public static void SpawnHiredPawnsQuest(HireableFactionDef hireableFaction, HireData hireData, int questDurationTicks, float price, Orders orders, List<Pawn>pawns = null)
+        public static void SpawnHiredPawnsQuest(HireableFaction hireableFaction, HireData hireData, int questDurationTicks, float price, Orders orders, List<Pawn>pawns = null)
         {
             Slate slate = new Slate();
-            slate.Set<HireableFactionDef>("hireableFaction", hireableFaction);
+            slate.Set<HireableFaction>("hireableFaction", hireableFaction);
             slate.Set<HireData>("hireData", hireData);
             slate.Set<int>("questDurationTicks", questDurationTicks);
             slate.Set<float>("price", price);
