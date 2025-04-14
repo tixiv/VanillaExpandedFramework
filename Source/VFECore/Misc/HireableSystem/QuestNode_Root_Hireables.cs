@@ -57,15 +57,31 @@ namespace VFECore.Misc.HireableSystem
                 pawns = HireableUtil.generatePawns(in hireData, faction, quest);
             }
 
+            slate.Set<List<Pawn>>("pawns", pawns);
             slate.Set<int>("mercenaryCount", pawns.Count);
             slate.Set<Pawn>("asker", pawns.First<Pawn>());
             slate.Set<int>("deadCount", 0);
 
-            // Explicit Signals
+            // Internal signals between our quest parts
+            string removePawnSignal = QuestGen.GenerateNewSignal("RemovePawn");
+            string contractCompletedSignal = QuestGen.GenerateNewSignal("ContractCompleted");
+            string assaultColonySignal = QuestGen.GenerateNewSignal("AssaultColony");
 
-            string removePawnSignal = QuestGenUtility.HardcodedSignalWithQuestID("hireables.RemovePawn");
-            string contractCompletedSignal = QuestGenUtility.HardcodedSignalWithQuestID("hireables.ContractCompleted");
-            string assaultColonySignal = QuestGenUtility.HardcodedSignalWithQuestID("hireables.AssaultColony");
+            // Okay, so I finally understood how you can get quest signals that will notify you
+            // When an event happens on any 'Thing' that belongs to your quest.
+            // You need to use 'QuestGenUtility.HardcodedSignalWithQuestID()' and pass a specially
+            // formatted string to it. The string is coded "mySlateObject.HardCodedSignalName",
+            // for example the string "pawns.Kidnapped" will give you this signal whenever any
+            // of the pawns that you set on the slate, eg. slate.Set<List<Pawn>>("pawns", myPawns);,
+            // get Kidnapped you will receive the signal with the signal arguments set to something
+            // that make sence like "SUBJECT=thePawn"
+            // You can find all the signal names in QuestUtility by the way. For example,
+            // QuestUtility.QuestTargetSignalPart_Kidnapped will give you the string "Kidnapped"
+
+            string inSignal_Arrested = QuestGenUtility.HardcodedSignalWithQuestID("pawns.Arrested");
+            string inSignal_Destroyed = QuestGenUtility.HardcodedSignalWithQuestID("pawns.Destroyed");
+            string inSignal_Kidnapped = QuestGenUtility.HardcodedSignalWithQuestID("pawns.Kidnapped");
+            string inSignal_LeftMap = QuestGenUtility.HardcodedSignalWithQuestID("pawns.LeftMap");
 
             // This quest part will make the pawns display a second faction, their home faction, while being hired.
             // This happens as long as the quest state is ongoing and this part includes the pawns.
@@ -76,6 +92,9 @@ namespace VFECore.Misc.HireableSystem
             hireableContractPart.outSignal_RemovePawn = removePawnSignal;
             hireableContractPart.outSignal_Completed = contractCompletedSignal;
             hireableContractPart.outSignal_AssaultColony = assaultColonySignal;
+            hireableContractPart.inSignal_Arrested = inSignal_Arrested;
+            hireableContractPart.inSignal_Destroyed = inSignal_Destroyed;
+            hireableContractPart.inSignal_Kidnapped = inSignal_Kidnapped;
 
             if (orders.Command != Orders.Commands.ConvertSavegame)
             {

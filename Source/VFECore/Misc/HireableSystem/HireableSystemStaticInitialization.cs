@@ -28,14 +28,12 @@ namespace VFECore.Misc.HireableSystem
                                               postfix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(QuestLodgerCanUnequip_Postfix)));
                 VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(CaravanFormingUtility), nameof(CaravanFormingUtility.AllSendablePawns)),
                                               transpiler: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(Patch_Quest_IsLodger_Transpiler)));
-                //VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(Pawn), nameof(Pawn.CheckAcceptArrest)),
-                //                              postfix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(CheckAcceptArrestPostfix)));
-                //VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(BillUtility), nameof(BillUtility.IsSurgeryViolationOnExtraFactionMember)),
-                //                              postfix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(IsSurgeryViolation_Postfix)));
                 VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(CompAbilityEffect_Farskip), nameof(CompAbilityEffect_Farskip.ConfirmationDialog), [typeof(GlobalTargetInfo), typeof(Action)]),
                                               prefix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(Farskip_ConfirmationDialog_Prefix)));
                 VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(WorldTargeter), nameof(WorldTargeter.StopTargeting)),
                                               postfix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(WorldTargeter_StopTargeting_Postfix)));
+                VFECore.harmonyInstance.Patch(AccessTools.Method(typeof(MapPawns), "IsValidColonyPawn"),
+                                              prefix: new HarmonyMethod(typeof(HireableSystemStaticInitialization), nameof(IsValidColonyPawn_Prefix)));
 
                 var subtype = typeof(CompAbilityEffect_Farskip).GetNestedTypes(BindingFlags.NonPublic).FirstOrDefault(t => t.Name.Contains("<PawnsToSkip>"));
                         if (subtype != null)
@@ -128,18 +126,12 @@ namespace VFECore.Misc.HireableSystem
             TargetChooser.TargetingFinishedCallback();
         }
 
-        public static void CheckAcceptArrestPostfix(Pawn __instance, ref bool __result)
+        public static bool IsValidColonyPawn_Prefix(Pawn pawn, ref bool __result)
         {
-            if (HiringContractTracker.IsHired(__instance))
-            {
-                HiringContractTracker.breakContract();
-                __result = false;
-            }
-        }
+            __result = true;
+            return false;
 
-        public static void IsSurgeryViolation_Postfix(Bill_Medical bill, ref bool __result)
-        {
-            __result = __result || (HiringContractTracker.IsHired(bill.GiverPawn) && bill.recipe.Worker.IsViolationOnPawn(bill.GiverPawn, bill.Part, Faction.OfPlayer));
+            // return true;
         }
     }
 }

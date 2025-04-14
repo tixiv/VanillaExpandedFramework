@@ -9,6 +9,7 @@ using RimWorld.Planet;
 using RimWorld.QuestGen;
 using Verse;
 using Verse.AI.Group;
+using static System.Collections.Specialized.BitVector32;
 using static RimWorld.QuestPart;
 using static UnityEngine.Random;
 
@@ -36,6 +37,10 @@ namespace VFECore.Misc.HireableSystem
         public string outSignal_Flee;
         public string outSignal_Completed;
 
+        public string inSignal_Arrested;
+        public string inSignal_Destroyed;
+        public string inSignal_Kidnapped;
+
         public override void ExposeData()
         {
             base.ExposeData();
@@ -53,6 +58,10 @@ namespace VFECore.Misc.HireableSystem
             Scribe_Values.Look(ref outSignal_AssaultColony, "outSignal_AssaultColony");
             Scribe_Values.Look(ref outSignal_Flee, "outSignal_Flee");
             Scribe_Values.Look(ref outSignal_Completed, "outSignal_Completed");
+
+            Scribe_Values.Look(ref inSignal_Arrested, "inSignal_Arrested");
+            Scribe_Values.Look(ref inSignal_Destroyed, "inSignal_Destroyed");
+            Scribe_Values.Look(ref inSignal_Kidnapped, "inSignal_Kidnapped");
         }
 
         public override void Notify_QuestSignalReceived(Signal signal)
@@ -65,11 +74,25 @@ namespace VFECore.Misc.HireableSystem
             {
                 if (signal.args.TryGetArg(i, out NamedArgument arg))
                 {
-                    debugString += $"arg{i}: label={arg.label} value={arg.arg.ToString()}, ";
+                    debugString += $"arg{i}: label={arg.label} value={arg.arg}, ";
                 }
             }
 
             Log.Message(debugString);
+
+
+            if (signal.tag == this.inSignal_Kidnapped && signal.args.TryGetArg<Pawn>("SUBJECT", out Pawn pawn) && contractInfo.pawns.Contains(pawn))
+            {
+                hireableFaction.NotifyPawnKidnapped();
+            }
+            else if (signal.tag == this.inSignal_Destroyed && signal.args.TryGetArg<Pawn>("SUBJECT", out Pawn pawn2) && contractInfo.pawns.Contains(pawn2))
+            {
+            }
+            else if (signal.tag == this.inSignal_Arrested && signal.args.TryGetArg<Pawn>("SUBJECT", out Pawn pawn3) && contractInfo.pawns.Contains(pawn3))
+            {
+            }
+
+
         }
 
         // This will send a signal for each pawn to QuestPart_ExtraFaction so the pawns get removed there.
@@ -203,22 +226,9 @@ namespace VFECore.Misc.HireableSystem
             caravan.RemovePawn(pawn);
         }
 
-        protected override void DelayFinished()
+        private void HandleCaravanPawns()
         {
-            base.DelayFinished();
-            SendSignalsToRemoveAllPawnsFromQuestPartExtraFaction();
-
-            // Handle kidnapped pawns
-            var kidnappedPawns = getKidnappedPawns();
-
-            foreach (Pawn p in kidnappedPawns)
-            {
-                // Return kidnapped pawns to their original faction
-                p.SetFaction(this.faction);
-            }
-
-            // Handle caravan pawns
-            var caravanPawns = contractInfo.pawns.Where(p => p.GetCaravan() != null);
+            List<Pawn> caravanPawns = contractInfo.pawns.Where(p => p.GetCaravan() != null).ToList();
 
             foreach (Pawn p in caravanPawns)
             {
@@ -228,15 +238,23 @@ namespace VFECore.Misc.HireableSystem
                 // Return pawn to home faction
                 p.SetFaction(this.faction);
             }
+        }
 
-            List<Pawn> pawnsToLeaveMap = contractInfo.pawns.Where(p => p != null && !p.Dead && !kidnappedPawns.Contains(p) && !caravanPawns.Contains(p)).ToList();
+        protected override void DelayFinished()
+        {
+            base.DelayFinished();
+            SendSignalsToRemoveAllPawnsFromQuestPartExtraFaction();
+
+            HandleCaravanPawns();
+
+            List<Pawn> pawnsToLeaveMap = contractInfo.pawns.Where(p => p != null && !p.Dead && p.Map != null).ToList();
 
             Faction factionToLeaveMap = this.faction;
 
             // If the original faction is hostile to the player (like pirates eg.) but the player
             // finished the quest without violating the mercenaries, then we generate a temporary faction for
             // the mercenaries to leave the map nicely (or stay in the medical bay until healed).
-            if (factionToLeaveMap.HostileTo(Faction.OfPlayer))
+            if (factionToLeaveMap.HostileTo(Faction.OfPlayer) && pawnsToLeaveMap.Any())
             {
                 factionToLeaveMap = temporaryFaction = HireableUtil.MakeFirendlyTemporaryFactionFromReference(factionToLeaveMap);
             }
@@ -253,8 +271,6 @@ namespace VFECore.Misc.HireableSystem
                 temporaryFaction.temporary = true; // temporary means it will get removed once the pawns have left the map
                 temporaryFaction.hidden = false;   // unhide fake faction while pawns are leaving the map
             }
-
-
 
             Find.SignalManager.SendSignal(new Signal(outSignal_Completed));
         }
