@@ -484,6 +484,7 @@
     <Compile Include="Misc\HireableSystem\QuestPartGiveToCaravan.cs" />
     <Compile Include="Misc\HireableSystem\QuestPart_AttackEnemyBase.cs" />
     <Compile Include="Misc\HireableSystem\QuestNode_Root_Hireables.cs" />
+    <Compile Include="Misc\HireableSystem\QuestPart_DropPods_NoLookTargets.cs" />
     <Compile Include="Misc\HireableSystem\QuestPart_FormCaravan.cs" />
     <Compile Include="Misc\HireableSystem\QuestPart_HireableContract.cs" />
     <Compile Include="Misc\HireableSystem\QuestPart_VisitSite.cs" />

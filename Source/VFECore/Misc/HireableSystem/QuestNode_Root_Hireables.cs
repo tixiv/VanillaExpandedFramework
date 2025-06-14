@@ -88,6 +88,8 @@ namespace VFECore.Misc.HireableSystem
 
             QuestPart_ExtraFaction extraFactionPart = quest.ExtraFaction(faction, pawns.Where(p => p.Faction == Faction.OfPlayer), ExtraFactionType.MiniFaction, false, [removePawnSignal]);
 
+            /*
+
             QuestPart_HireableContract hireableContractPart = quest.HireableContract(hireableFaction, faction, temporaryFaction, pawns, price, questDurationTicks);
             hireableContractPart.outSignal_RemovePawn = removePawnSignal;
             hireableContractPart.outSignal_Completed = contractCompletedSignal;
@@ -95,6 +97,8 @@ namespace VFECore.Misc.HireableSystem
             hireableContractPart.inSignal_Arrested = inSignal_Arrested;
             hireableContractPart.inSignal_Destroyed = inSignal_Destroyed;
             hireableContractPart.inSignal_Kidnapped = inSignal_Kidnapped;
+
+            */
 
             if (orders.Command != Orders.Commands.ConvertSavegame)
             {
@@ -110,11 +114,11 @@ namespace VFECore.Misc.HireableSystem
             {
                 if (orders.Cell.HasValue)
                 {
-                    quest.DropPods(mapParent, pawns, sendStandardLetter: new bool?(true), dropSpot: orders.Cell);
+                    quest.DropPods_NoLookTargets(mapParent, pawns, sendStandardLetter: new bool?(false), dropSpot: orders.Cell, thingsToExcludeFromHyperlinks: pawns);
                 }
                 else
                 {
-                    quest.DropPods(mapParent, pawns, sendStandardLetter: new bool?(true), useTradeDropSpot: true);
+                    quest.DropPods_NoLookTargets(mapParent, pawns, sendStandardLetter: new bool?(false), useTradeDropSpot: true, thingsToExcludeFromHyperlinks: pawns);
                 }
             }
             else if (orders.WorldObject is Settlement settlement && orders.Command == Orders.Commands.AttackAndDropAtEdge)
@@ -149,6 +153,8 @@ namespace VFECore.Misc.HireableSystem
                 Log.Error($"Bad orders {orders}");
             }
 
+            /*
+
             quest.Signal(contractCompletedSignal, delegate
             {
                 quest.Letter(LetterDefOf.NeutralEvent, text: "[mercenariesLeavingLetterText]", label: "[mercenariesLeavingLetterLabel]", lookTargets: pawns.Where(p => !p.Dead));
@@ -169,6 +175,7 @@ namespace VFECore.Misc.HireableSystem
                 Log.Message($"QuestNodeRoot end: Faction is null");
 
             Log.Message($"Quest part reserves faction: {extraFactionPart.QuestPartReserves(faction)}");
+            */
         }
 
         private Faction getOrMakeFactionOfDef(in HireableFactionDef hireableFaction, out Faction temporaryFaction)
